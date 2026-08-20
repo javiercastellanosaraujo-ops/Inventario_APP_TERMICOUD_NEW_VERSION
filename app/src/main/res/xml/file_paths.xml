@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <external-files-path name="notas_entrega" path="Documents/notas_entrega" />
+    <external-files-path name="facturas" path="Documents/facturas" />
+    <external-files-path name="external_docs" path="Documents" />
+    <files-path name="internal_notas_entrega" path="notas_entrega" />
+    <files-path name="internal_facturas" path="facturas" />
+    <cache-path name="cache_notas_entrega" path="notas_entrega" />
+    <cache-path name="cache_facturas" path="facturas" />
+</paths>

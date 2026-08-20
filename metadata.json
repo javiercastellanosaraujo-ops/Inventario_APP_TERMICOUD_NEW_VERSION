@@ -1,0 +1,6 @@
+{
+  "name": "Termicoud Inventario",
+  "description": "Gestión táctil de inventario y ventas para Termicoud. Sincronización con Google Sheets, tasa USD/Bs y panel de control estilo inspector.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

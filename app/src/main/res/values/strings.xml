@@ -1,0 +1,5 @@
+<resources>
+    <string name="app_name">Termicoud</string>
+    <!-- Web Client ID from Firebase Console > Authentication > Sign-in method > Google > Web SDK configuration -->
+    <string name="default_web_client_id">616234372102-0369qg6gav90phd4k5thrsrj11tedk3h.apps.googleusercontent.com</string>
+</resources>
