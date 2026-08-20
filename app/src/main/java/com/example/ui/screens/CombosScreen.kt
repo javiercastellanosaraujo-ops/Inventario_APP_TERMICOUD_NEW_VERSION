@@ -476,9 +476,9 @@ fun ComboCardItem(
                         text = String.format(Locale.US, "Bs. %.2f", precioBs),
                         style = MonoDataSmall.copy(color = TextSecondary, fontSize = 11.sp)
                     )
-                    if (combo.costoTotal > 0) {
+                    if (combo.costoCalculado > 0) {
                         Text(
-                            text = String.format(Locale.US, "Ganancia: +$%.2f", combo.gananciaNeta),
+                            text = String.format(Locale.US, "Ganancia: +$%.2f", combo.gananciaEstimada),
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
                             color = ElectricLime
                         )

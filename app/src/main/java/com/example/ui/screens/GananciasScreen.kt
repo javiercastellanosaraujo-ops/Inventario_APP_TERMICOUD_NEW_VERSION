@@ -854,6 +854,60 @@ private fun LazyListScope.renderGananciasItems(
                         )
                     }
                 }
+
+                // Cost and Profit Breakdown if costs are registered
+                val totalCostoUsd = sales.sumOf { it.costoTotalUsd }
+                if (totalCostoUsd > 0 && totalUsd > 0) {
+                    val gananciaNeta = (totalUsd - totalCostoUsd).coerceAtLeast(0.0)
+                    val margen = (gananciaNeta / totalUsd) * 100.0
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = GraphiteSurfaceVariant.copy(alpha = 0.6f),
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(0.8.dp, GraphiteBorder)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "Ganancia Neta Estimada:",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextMuted,
+                                    fontSize = 11.sp
+                                )
+                                Text(
+                                    text = String.format(Locale.US, "Costo base: $%,.2f", totalCostoUsd),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextSecondary,
+                                    fontSize = 10.sp
+                                )
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = String.format(Locale.US, "+$%,.2f", gananciaNeta),
+                                    style = MonoDataSmall.copy(
+                                        fontSize = 14.sp,
+                                        color = ElectricLime,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                )
+                                Text(
+                                    text = String.format(Locale.US, "Margen: %.1f%%", margen),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = ElectricLime.copy(alpha = 0.8f),
+                                    fontSize = 10.sp
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
     }

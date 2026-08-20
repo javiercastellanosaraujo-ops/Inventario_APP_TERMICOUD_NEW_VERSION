@@ -223,12 +223,24 @@ fun CameraPreviewScanner(
 
                 try {
                     cameraProvider.unbindAll()
-                    cameraProvider.bindToLifecycle(
-                        lifecycleOwner,
-                        CameraSelector.DEFAULT_BACK_CAMERA,
-                        preview,
-                        imageAnalysis
-                    )
+                    val selector = if (cameraProvider.hasCamera(CameraSelector.DEFAULT_BACK_CAMERA)) {
+                        CameraSelector.DEFAULT_BACK_CAMERA
+                    } else if (cameraProvider.hasCamera(CameraSelector.DEFAULT_FRONT_CAMERA)) {
+                        CameraSelector.DEFAULT_FRONT_CAMERA
+                    } else {
+                        null
+                    }
+
+                    if (selector != null) {
+                        cameraProvider.bindToLifecycle(
+                            lifecycleOwner,
+                            selector,
+                            preview,
+                            imageAnalysis
+                        )
+                    } else {
+                        Log.w("CameraPreviewScanner", "No camera device found on current hardware/emulator.")
+                    }
                 } catch (e: Exception) {
                     Log.e("CameraPreviewScanner", "Camera bind failed: ${e.message}", e)
                 }
