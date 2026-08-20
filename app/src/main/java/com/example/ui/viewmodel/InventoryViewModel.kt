@@ -867,14 +867,12 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         _selectedTab.value = tabIndex
         when (tabIndex) {
             0 -> {
-                fetchExchangeRateFromBackend()
                 ensureSalesLoaded(limit = 20)
             }
             1, 6 -> {
-                fetchExchangeRateFromBackend()
+                // Tab 1 (Inventario), Tab 6 (Tasa)
             }
             2 -> {
-                fetchExchangeRateFromBackend()
                 ensureCombosLoaded()
             }
             3 -> {
