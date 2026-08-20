@@ -844,19 +844,27 @@ private fun QuickActionCard(
                 )
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(10.dp))
 
-            Column {
+            Column(
+                modifier = Modifier.weight(1f, fill = false)
+            ) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 15.sp),
+                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 14.sp),
                     fontWeight = FontWeight.Bold,
-                    color = TextPrimary
+                    color = TextPrimary,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 12.sp),
-                    color = TextSecondary
+                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp),
+                    color = TextSecondary,
+                    maxLines = 1,
+                    softWrap = false,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
         }

@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.ElectricLime
@@ -100,14 +101,19 @@ fun ExchangeRateScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.weight(1f, fill = false),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Icon(Icons.Default.Savings, contentDescription = null, tint = ElectricLime)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "TASA DEL DÍA Y CONFIGURACIÓN",
+                        text = "TASA DEL DÍA Y AJUSTES",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
 
@@ -393,7 +399,7 @@ fun ExchangeRateScreen(
                     Spacer(modifier = Modifier.height(8.dp))
 
                     Text(
-                        text = "Endpoint Web App para sincronizar ganancias mensuales, cierres y reportes externos.",
+                        text = "Endpoint Web App para sincronizar ganancias mensuales, tasa compartida y respaldo automático de Notas de Entrega (PDF) en tu Google Drive.",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextMuted,
                         fontSize = 11.sp

@@ -78,7 +78,7 @@ fun StockEntryScreen(
     products: List<Product>,
     categories: List<String>,
     onAddStockToExisting: (product: Product, quantityToAdd: Int) -> Unit,
-    onCreateNewProduct: (producto: String, cantidad: Int, precioUsd: Double, categoria: String, codigoBarras: String, precioMayor: Double?, cantidadMinimaMayor: Int?) -> Unit,
+    onCreateNewProduct: (producto: String, cantidad: Int, precioUsd: Double, categoria: String, codigoBarras: String, precioMayor: Double?, cantidadMinimaMayor: Int?, precioCompra: Double) -> Unit,
     onOpenQuickScan: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
@@ -91,6 +91,7 @@ fun StockEntryScreen(
     var addQuantityInput by remember { mutableStateOf("1") }
 
     // New product fields
+    var newProductPrecioCompraInput by remember { mutableStateOf("") }
     var newProductPriceInput by remember { mutableStateOf("") }
     var newProductCategoryInput by remember { mutableStateOf("General") }
     var newProductBarcode by remember { mutableStateOf("") }
@@ -134,16 +135,23 @@ fun StockEntryScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.weight(1f, fill = false),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Icon(Icons.Default.AddBox, contentDescription = null, tint = ElectricLime)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "ENTRADA / REPOSICIÓN DE STOCK",
+                        text = "ENTRADA DE STOCK",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
-                        color = TextPrimary
+                        color = TextPrimary,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
+
+                Spacer(modifier = Modifier.width(8.dp))
 
                 if (onOpenQuickScan != null) {
                     Button(
@@ -153,7 +161,7 @@ fun StockEntryScreen(
                             contentColor = Color.Black
                         ),
                         shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
                         modifier = Modifier.testTag("btn_goto_quick_scan_entry")
                     ) {
                         Icon(
@@ -162,8 +170,8 @@ fun StockEntryScreen(
                             tint = Color.Black,
                             modifier = Modifier.size(16.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text("Escaneo Rápido", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text("Escaneo Rápido", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black, maxLines = 1, softWrap = false)
                     }
                 }
             }
@@ -460,22 +468,84 @@ fun StockEntryScreen(
                             }
 
                             Column(modifier = Modifier.weight(1f)) {
-                                Text("Precio USD:", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                                Text("Precio Compra (Costo):", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
                                 Spacer(modifier = Modifier.height(4.dp))
                                 OutlinedTextField(
-                                    value = newProductPriceInput,
-                                    onValueChange = { newProductPriceInput = it },
-                                    prefix = { Text("$ ", color = ElectricLime) },
+                                    value = newProductPrecioCompraInput,
+                                    onValueChange = { newProductPrecioCompraInput = it },
+                                    prefix = { Text("$ ", color = TextSecondary) },
+                                    placeholder = { Text("0.00", color = TextMuted) },
                                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                     singleLine = true,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .testTag("new_product_price_input"),
+                                        .testTag("new_product_precio_compra_input"),
                                     colors = OutlinedTextFieldDefaults.colors(
                                         focusedBorderColor = ElectricLime,
                                         unfocusedBorderColor = GraphiteBorder
                                     )
                                 )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Text("Precio Venta (Detal USD):", style = MaterialTheme.typography.labelSmall, color = TextSecondary)
+                            Spacer(modifier = Modifier.height(4.dp))
+                            OutlinedTextField(
+                                value = newProductPriceInput,
+                                onValueChange = { newProductPriceInput = it },
+                                prefix = { Text("$ ", color = ElectricLime) },
+                                placeholder = { Text("0.00", color = TextMuted) },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                singleLine = true,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .testTag("new_product_price_input"),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    focusedBorderColor = ElectricLime,
+                                    unfocusedBorderColor = GraphiteBorder
+                                )
+                            )
+                        }
+
+                        // Live Profit Preview for new product
+                        val cost = newProductPrecioCompraInput.toDoubleOrNull() ?: 0.0
+                        val price = newProductPriceInput.toDoubleOrNull() ?: 0.0
+                        if (price > 0 || cost > 0) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            val profit = price - cost
+                            val margin = if (price > 0) (profit / price) * 100.0 else 0.0
+                            Surface(
+                                modifier = Modifier.fillMaxWidth(),
+                                color = GraphiteSurfaceVariant,
+                                shape = RoundedCornerShape(6.dp),
+                                border = androidx.compose.foundation.BorderStroke(
+                                    0.8.dp,
+                                    if (profit >= 0) ElectricLime.copy(alpha = 0.3f) else com.example.ui.theme.AlertRed.copy(alpha = 0.3f)
+                                )
+                            ) {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Ganancia estimada por unidad:",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TextMuted
+                                    )
+                                    Text(
+                                        text = String.format(Locale.US, "%s$%.2f (%.1f%%)", if (profit >= 0) "+" else "", profit, margin),
+                                        style = MonoDataSmall.copy(
+                                            color = if (profit >= 0) ElectricLime else com.example.ui.theme.AlertRed,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    )
+                                }
                             }
                         }
 
@@ -677,9 +747,12 @@ fun StockEntryScreen(
                                 val precioMayor = if (hasWholesale) newProductPrecioMayorInput.toDoubleOrNull() else null
                                 val cantMinima = if (hasWholesale) newProductCantMinimaMayorInput.toIntOrNull() else null
 
+                                val cost = newProductPrecioCompraInput.toDoubleOrNull() ?: 0.0
+
                                 if (name.isNotBlank() && price >= 0) {
-                                    onCreateNewProduct(name, qty, price, newProductCategoryInput, newProductBarcode.trim(), precioMayor, cantMinima)
+                                    onCreateNewProduct(name, qty, price, newProductCategoryInput, newProductBarcode.trim(), precioMayor, cantMinima, cost)
                                     searchOrNameInput = ""
+                                    newProductPrecioCompraInput = ""
                                     newProductPriceInput = ""
                                     newProductBarcode = ""
                                     hasWholesale = false

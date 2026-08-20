@@ -266,17 +266,21 @@ fun SaleScreen(
 
             // Horizontal row of matching products & combos
             if (searchQuery.isNotBlank()) {
-                val matchingProducts = products.filter {
-                    it.producto.contains(searchQuery, ignoreCase = true) ||
-                            it.catalogo.contains(searchQuery, ignoreCase = true) ||
-                            it.codigo.contains(searchQuery, ignoreCase = true) ||
-                            it.codigoBarras.contains(searchQuery, ignoreCase = true)
+                val matchingProducts = remember(products, searchQuery) {
+                    products.filter {
+                        it.producto.contains(searchQuery, ignoreCase = true) ||
+                                it.catalogo.contains(searchQuery, ignoreCase = true) ||
+                                it.codigo.contains(searchQuery, ignoreCase = true) ||
+                                it.codigoBarras.contains(searchQuery, ignoreCase = true)
+                    }.take(30)
                 }
 
-                val matchingCombos = combos.filter {
-                    it.nombre.contains(searchQuery, ignoreCase = true) ||
-                            it.categoria.contains(searchQuery, ignoreCase = true) ||
-                            it.componentes.any { c -> c.nombre.contains(searchQuery, ignoreCase = true) }
+                val matchingCombos = remember(combos, searchQuery) {
+                    combos.filter {
+                        it.nombre.contains(searchQuery, ignoreCase = true) ||
+                                it.categoria.contains(searchQuery, ignoreCase = true) ||
+                                it.componentes.any { c -> c.nombre.contains(searchQuery, ignoreCase = true) }
+                    }.take(30)
                 }
 
                 if (matchingProducts.isNotEmpty() || matchingCombos.isNotEmpty()) {
@@ -809,10 +813,10 @@ fun SaleScreen(
                         // 1. 3-Button Segmented Control in a single row
                         Row(
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             val modes = listOf(
-                                PriceMode.AUTOMATICO to "Automático",
+                                PriceMode.AUTOMATICO to "Auto",
                                 PriceMode.DETAL to "Detal",
                                 PriceMode.MAYOR to "Mayor"
                             )
@@ -822,7 +826,7 @@ fun SaleScreen(
                                     onClick = { activePriceMode = mode },
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(32.dp)
+                                        .height(30.dp)
                                         .clip(RoundedCornerShape(6.dp))
                                         .testTag("btn_mode_${mode.name.lowercase()}"),
                                     color = if (isSelected) ElectricLime else GraphiteSurfaceVariant,
@@ -838,7 +842,10 @@ fun SaleScreen(
                                             style = MaterialTheme.typography.labelSmall,
                                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                             color = if (isSelected) Color.Black else TextSecondary,
-                                            fontSize = 11.sp
+                                            fontSize = 10.5.sp,
+                                            maxLines = 1,
+                                            softWrap = false,
+                                            overflow = TextOverflow.Ellipsis
                                         )
                                     }
                                 }

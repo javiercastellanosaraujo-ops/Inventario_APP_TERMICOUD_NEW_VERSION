@@ -28,11 +28,13 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
+import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
@@ -149,10 +151,11 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
     private val _movimientos = MutableStateFlow<List<Movimiento>>(emptyList())
     val movimientos: StateFlow<List<Movimiento>> = _movimientos.asStateFlow()
 
-    // Filtered products flow based on category, search query, and stock level
+    // Filtered products flow based on category, search query, and stock level with 300ms debounce
+    @OptIn(FlowPreview::class)
     val filteredProducts: StateFlow<List<Product>> = combine(
         products,
-        _searchQuery,
+        _searchQuery.debounce { query -> if (query.isBlank()) 0L else 300L },
         _selectedCategory,
         _stockFilter
     ) { allProducts, query, category, filter ->
@@ -385,8 +388,8 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }
 
-    private fun listenToAllUsers() {
-        allUsersListener?.remove()
+    fun ensureAllUsersLoaded() {
+        if (allUsersListener != null) return
         allUsersListener = firestore.collection("usuarios")
             .orderBy("fechaSolicitud", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, error ->
@@ -414,6 +417,10 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                     _allUsers.value = userList
                 }
             }
+    }
+
+    private fun listenToAllUsers() {
+        ensureAllUsersLoaded()
     }
 
     fun approveUser(targetEmail: String) {
@@ -506,7 +513,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         _isSyncing.value = true
         listenToSharedExchangeRate()
 
-        // 1. Real-time Products listener
+        // 1. Real-time Products listener (Core catalog)
         productsListener = firestore.collection("productos")
             .addSnapshotListener { snapshot, error ->
                 _isSyncing.value = false
@@ -542,6 +549,14 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                                 val precioUsd = (data["precioUsd"] ?: data["PrecioUsd"] ?: data["precio"] ?: data["Precio"]
                                     ?: data["price"] ?: data["precio_usd"] ?: 0.0).toSafeDouble(default = 0.0)
 
+                                val precioCompra = when {
+                                    data.containsKey("precioCompra") -> (data["precioCompra"] ?: 0.0).toSafeDouble()
+                                    data.containsKey("precio_compra") -> (data["precio_compra"] ?: 0.0).toSafeDouble()
+                                    data.containsKey("costo") -> (data["costo"] ?: 0.0).toSafeDouble()
+                                    data.containsKey("cost") -> (data["cost"] ?: 0.0).toSafeDouble()
+                                    else -> 0.0
+                                }
+
                                 val precioMayor = when {
                                     data.containsKey("precioMayor") -> (data["precioMayor"] ?: 0.0).toSafeDouble().let { if (it > 0.0) it else null }
                                     data.containsKey("precio_mayor") -> (data["precio_mayor"] ?: 0.0).toSafeDouble().let { if (it > 0.0) it else null }
@@ -569,6 +584,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                                     producto = producto,
                                     cantidad = cantidad,
                                     precioUsd = precioUsd,
+                                    precioCompra = precioCompra,
                                     precioMayor = precioMayor,
                                     cantidadMinimaMayor = cantidadMinimaMayor,
                                     catalogo = catalogo,
@@ -590,10 +606,19 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                 }
             }
 
-        // 2. Real-time Sales listener
+        // Lazy pre-fetch recent sales for Dashboard
+        ensureSalesLoaded(limit = 20)
+    }
+
+    /**
+     * Lazy Listener for Sales: attached only when needed (Dashboard preview, Historial, Ganancias)
+     */
+    fun ensureSalesLoaded(limit: Long = 100) {
+        if (salesListener != null) return
+
         salesListener = firestore.collection("ventas")
             .orderBy("timestamp", Query.Direction.DESCENDING)
-            .limit(100)
+            .limit(limit)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.e("InventoryViewModel", "Error escuchando ventas: ${error.message}")
@@ -608,6 +633,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                                 val prodName = (m["producto"] as? String) ?: (m["nombre"] as? String) ?: (m["productoNombre"] as? String) ?: ""
                                 val tipo = (m["tipo"] as? String) ?: "producto"
                                 val precio = (m["precioUsd"] as? Number)?.toDouble() ?: (m["precio_usd"] as? Number)?.toDouble() ?: (m["precio"] as? Number)?.toDouble() ?: 0.0
+                                val precioCompra = (m["precioCompra"] as? Number)?.toDouble() ?: (m["precio_compra"] as? Number)?.toDouble() ?: (m["costo"] as? Number)?.toDouble() ?: 0.0
                                 val cant = (m["cantidad"] as? Number)?.toInt() ?: (m["qty"] as? Number)?.toInt() ?: 0
                                 val fila = (m["fila"] as? Number)?.toInt() ?: 0
                                 SaleItem(
@@ -615,6 +641,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                                     producto = prodName,
                                     cantidad = cant,
                                     precioUsd = precio,
+                                    precioCompra = precioCompra,
                                     tipo = tipo
                                 )
                             }
@@ -655,11 +682,17 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                     }
                 }
             }
+    }
 
-        // 3. Real-time Movements listener
+    /**
+     * Lazy Listener for Movements: attached only when navigating to Movements / Full History
+     */
+    fun ensureMovementsLoaded(limit: Long = 150) {
+        if (movementsListener != null) return
+
         movementsListener = firestore.collection("movimientos")
             .orderBy("fecha", Query.Direction.DESCENDING)
-            .limit(150)
+            .limit(limit)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
                     Log.e("InventoryViewModel", "Error escuchando movimientos: ${error.message}")
@@ -699,8 +732,14 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                     _movimientos.value = movs
                 }
             }
+    }
 
-        // 4. Real-time Combos listener
+    /**
+     * Lazy Listener for Combos: attached only when needed (Salida with combos or Combos screen)
+     */
+    fun ensureCombosLoaded() {
+        if (combosListener != null) return
+
         combosListener = firestore.collection("combos")
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
@@ -718,6 +757,8 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                             val categoria = doc.getString("categoria") ?: "Combos"
 
                             val componentesRaw = doc.get("componentes") as? List<Map<String, Any>> ?: emptyList()
+                            val costoTotalDoc = (doc.getDouble("costoTotal") ?: doc.getDouble("costo_total") ?: (doc.get("costoTotal") as? Number)?.toDouble()) ?: 0.0
+
                             val componentesList = componentesRaw.map { comp ->
                                 val compFila = (comp["fila"] as? Number)?.toInt() ?: 0
                                 val compNombre = comp["nombre"] as? String ?: ""
@@ -727,11 +768,22 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                                 val stockDisp = (comp["stockDisponible"] as? Number)?.toInt()
                                     ?: (comp["stock"] as? Number)?.toInt()
                                     ?: (comp["stock_disponible"] as? Number)?.toInt() ?: 0
+                                val matchingProd = _products.value.find { it.fila == compFila }
+                                val precioCompraUnitario = (comp["precioCompraUnitario"] as? Number)?.toDouble()
+                                    ?: (comp["precioCompra"] as? Number)?.toDouble()
+                                    ?: (comp["costo"] as? Number)?.toDouble()
+                                    ?: matchingProd?.precioCompra ?: 0.0
+                                val precioVentaUnitario = (comp["precioVentaUnitario"] as? Number)?.toDouble()
+                                    ?: (comp["precioUsd"] as? Number)?.toDouble()
+                                    ?: matchingProd?.precioUsd ?: 0.0
+
                                 ComboComponente(
                                     fila = compFila,
                                     nombre = compNombre,
                                     cantidadPorCombo = cantPorCombo,
-                                    stockDisponible = stockDisp
+                                    stockDisponible = stockDisp,
+                                    precioCompraUnitario = precioCompraUnitario,
+                                    precioVentaUnitario = precioVentaUnitario
                                 )
                             }
 
@@ -746,6 +798,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                             }
 
                             val finalDisponibles = backendDisponibles ?: calculatedDisponibles
+                            val finalCosto = if (costoTotalDoc > 0) costoTotalDoc else componentesList.sumOf { it.precioCompraUnitario * it.cantidadPorCombo }
 
                             Combo(
                                 fila = fila,
@@ -754,7 +807,8 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                                 precioUsd = precioUsd,
                                 categoria = categoria,
                                 componentes = componentesList,
-                                disponibles = finalDisponibles
+                                disponibles = finalDisponibles,
+                                costoTotal = finalCosto
                             )
                         } catch (e: Exception) {
                             Log.e("InventoryViewModel", "Error parseando combo ${doc.id}: ${e.message}")
@@ -812,15 +866,27 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
     fun selectTab(tabIndex: Int) {
         _selectedTab.value = tabIndex
         when (tabIndex) {
-            0, 1, 2, 6 -> {
-                // Ensure shared exchange rate is fresh on Inicio, Inventario, Salida, Tasa
+            0 -> {
+                fetchExchangeRateFromBackend()
+                ensureSalesLoaded(limit = 20)
+            }
+            1, 6 -> {
                 fetchExchangeRateFromBackend()
             }
+            2 -> {
+                fetchExchangeRateFromBackend()
+                ensureCombosLoaded()
+            }
+            3 -> {
+                // Entrada
+            }
             4 -> {
+                ensureCombosLoaded()
                 fetchCombos()
             }
             5 -> {
-                // Ganancias: fetch data every time screen takes focus
+                // Ganancias: fetch data and ensure sales are loaded
+                ensureSalesLoaded(limit = 100)
                 fetchGanancias()
                 fetchHistorialMeses()
             }
@@ -1251,6 +1317,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                         "metodoPago" to metodoPago,
                         "items" to currentCart.map { item ->
                             if (item.isCombo && item.combo != null) {
+                                val comboCosto = item.combo.costoCalculado
                                 mapOf(
                                     "tipo" to "combo",
                                     "fila" to item.combo.fila,
@@ -1258,11 +1325,14 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                                     "nombre" to item.combo.nombre,
                                     "cantidad" to item.cantidadSelected,
                                     "precioUsd" to item.combo.precioUsd,
+                                    "precioCompra" to comboCosto,
                                     "componentes" to item.combo.componentes.map {
                                         mapOf(
                                             "fila" to it.fila,
                                             "nombre" to it.nombre,
-                                            "cantidadPorCombo" to it.cantidadPorCombo
+                                            "cantidadPorCombo" to it.cantidadPorCombo,
+                                            "precioCompraUnitario" to it.precioCompraUnitario,
+                                            "precioVentaUnitario" to it.precioVentaUnitario
                                         )
                                     }
                                 )
@@ -1273,7 +1343,8 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                                     "producto" to item.product.producto,
                                     "nombre" to item.product.producto,
                                     "cantidad" to item.cantidadSelected,
-                                    "precioUsd" to item.precioUnitarioAplicado
+                                    "precioUsd" to item.precioUnitarioAplicado,
+                                    "precioCompra" to item.product.precioCompra
                                 )
                             }
                         },
@@ -1304,6 +1375,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                                 producto = item.combo.nombre,
                                 cantidad = item.cantidadSelected,
                                 precioUsd = item.combo.precioUsd,
+                                precioCompra = item.combo.costoCalculado,
                                 tipo = "combo",
                                 componentes = item.combo.componentes
                             )
@@ -1313,6 +1385,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                                 producto = item.product.producto,
                                 cantidad = item.cantidadSelected,
                                 precioUsd = item.precioUnitarioAplicado,
+                                precioCompra = item.product.precioCompra,
                                 tipo = "producto"
                             )
                         }
@@ -1320,7 +1393,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                 )
 
                 // Auto-upload Nota de Entrega PDF to Google Drive Folder in Background if configured
-                val driveUrl = AppConfig.GOOGLE_DRIVE_FOLDER_WEBHOOK_URL.trim().ifBlank { preferencesRepo.backendUrl.value.trim() }
+                val driveUrl = preferencesRepo.backendUrl.value.trim().ifBlank { AppConfig.GOOGLE_DRIVE_FOLDER_WEBHOOK_URL.trim() }
                 if (driveUrl.isNotBlank()) {
                     viewModelScope.launch(kotlinx.coroutines.Dispatchers.IO) {
                         try {
@@ -1329,7 +1402,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                                 val bytes = pdfFile.readBytes()
                                 val base64 = android.util.Base64.encodeToString(bytes, android.util.Base64.NO_WRAP)
                                 val mesAnioStr = java.text.SimpleDateFormat("yyyy-MM", java.util.Locale.getDefault()).format(java.util.Date(saleCompleted.timestamp))
-                                GananciasApiService.uploadInvoiceToDrive(
+                                val uploadResult = GananciasApiService.uploadInvoiceToDrive(
                                     url = driveUrl,
                                     saleId = saleCompleted.id,
                                     folio = saleCompleted.folio,
@@ -1339,9 +1412,14 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                                     usuario = saleCompleted.usuario,
                                     mesAnio = mesAnioStr
                                 )
+                                if (uploadResult.isSuccess) {
+                                    Log.i("InventoryViewModel", "Nota de Entrega enviada a Google Drive con éxito")
+                                } else {
+                                    Log.w("InventoryViewModel", "No se pudo subir PDF a Drive: ${uploadResult.exceptionOrNull()?.message}")
+                                }
                             }
                         } catch (e: Exception) {
-                            Log.w("InventoryViewModel", "Error en subida silenciosa de PDF a Drive: ${e.message}")
+                            Log.w("InventoryViewModel", "Error en subida de PDF a Drive: ${e.message}")
                         }
                     }
                 }
@@ -1377,7 +1455,8 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         newPrecioUsd: Double,
         newCodigoBarras: String = product.codigoBarras,
         newPrecioMayor: Double? = product.precioMayor,
-        newCantidadMinimaMayor: Int? = product.cantidadMinimaMayor
+        newCantidadMinimaMayor: Int? = product.cantidadMinimaMayor,
+        newPrecioCompra: Double? = product.precioCompra
     ) {
         val userSession = _currentUser.value
         val userEmail = getCurrentAuthEmail()
@@ -1398,6 +1477,10 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                     "precioUsd" to newPrecioUsd,
                     "codigoBarras" to newCodigoBarras.trim()
                 )
+                if (newPrecioCompra != null && newPrecioCompra >= 0) {
+                    updateMap["precioCompra"] = newPrecioCompra
+                    updateMap["costo"] = newPrecioCompra
+                }
                 if (newPrecioMayor != null && newPrecioMayor > 0) {
                     updateMap["precioMayor"] = newPrecioMayor
                 } else {
@@ -1456,6 +1539,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                             fila = product.fila,
                             cantidad = newCantidad,
                             precioUsd = newPrecioUsd,
+                            precioCompra = newPrecioCompra,
                             precioMayor = newPrecioMayor,
                             cantidadMinimaMayor = newCantidadMinimaMayor
                         )
@@ -1666,7 +1750,8 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         categoria: String,
         codigoBarras: String = "",
         precioMayor: Double? = null,
-        cantidadMinimaMayor: Int? = null
+        cantidadMinimaMayor: Int? = null,
+        precioCompra: Double = 0.0
     ) {
         if (producto.isBlank()) return
         val userSession = _currentUser.value
@@ -1686,6 +1771,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                     producto = producto.trim(),
                     cantidad = cantidad.coerceAtLeast(0),
                     precioUsd = precioUsd.coerceAtLeast(0.0),
+                    precioCompra = precioCompra.coerceAtLeast(0.0),
                     precioMayor = if (precioMayor != null && precioMayor > 0) precioMayor else null,
                     cantidadMinimaMayor = if (cantidadMinimaMayor != null && cantidadMinimaMayor > 0) cantidadMinimaMayor else null,
                     catalogo = categoria.ifBlank { "General" }.trim(),
@@ -1727,6 +1813,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                         producto = producto,
                         cantidad = cantidad,
                         precioUsd = precioUsd,
+                        precioCompra = precioCompra,
                         precioMayor = precioMayor,
                         cantidadMinimaMayor = cantidadMinimaMayor,
                         catalogo = categoria,
@@ -2253,9 +2340,13 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                         fila = prod.fila,
                         nombre = prod.producto,
                         cantidadPorCombo = qty,
-                        stockDisponible = prod.cantidad
+                        stockDisponible = prod.cantidad,
+                        precioCompraUnitario = prod.precioCompra,
+                        precioVentaUnitario = prod.precioUsd
                     )
                 }
+
+                val costoTotal = componentesList.sumOf { it.precioCompraUnitario * it.cantidadPorCombo }
 
                 val disponibles = if (componentesList.isEmpty()) 0 else {
                     componentesList.minOfOrNull { comp ->
@@ -2270,7 +2361,8 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                     precioUsd = precioUsd,
                     categoria = categoria.ifBlank { "Combos" },
                     componentes = componentesList,
-                    disponibles = disponibles
+                    disponibles = disponibles,
+                    costoTotal = costoTotal
                 )
 
                 // Save to Firestore
@@ -2282,12 +2374,15 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                     "precioUsd" to precioUsd,
                     "categoria" to categoria.ifBlank { "Combos" },
                     "disponibles" to disponibles,
+                    "costoTotal" to costoTotal,
                     "componentes" to componentesList.map {
                         mapOf(
                             "fila" to it.fila,
                             "nombre" to it.nombre,
                             "cantidadPorCombo" to it.cantidadPorCombo,
-                            "stockDisponible" to it.stockDisponible
+                            "stockDisponible" to it.stockDisponible,
+                            "precioCompraUnitario" to it.precioCompraUnitario,
+                            "precioVentaUnitario" to it.precioVentaUnitario
                         )
                     }
                 )).await()

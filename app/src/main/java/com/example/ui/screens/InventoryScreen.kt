@@ -16,8 +16,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
@@ -31,6 +33,13 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -72,6 +81,30 @@ fun InventoryScreen(
     onQuickAddToCart: (Product) -> Unit,
     onRefresh: () -> Unit
 ) {
+    // Preserve scroll state across tab switches
+    val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+
+    // Progressive pagination in batches of 30
+    var visibleItemCount by rememberSaveable(selectedCategory, searchQuery, stockFilter) { mutableIntStateOf(30) }
+
+    val shouldLoadMore by remember(products.size, visibleItemCount) {
+        derivedStateOf {
+            if (visibleItemCount >= products.size) return@derivedStateOf false
+            val lastVisible = listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            lastVisible >= (visibleItemCount - 5)
+        }
+    }
+
+    LaunchedEffect(shouldLoadMore) {
+        if (shouldLoadMore) {
+            visibleItemCount = (visibleItemCount + 30).coerceAtMost(products.size)
+        }
+    }
+
+    val displayedProducts = remember(products, visibleItemCount) {
+        products.take(visibleItemCount)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -274,12 +307,13 @@ fun InventoryScreen(
             }
         } else {
             LazyColumn(
+                state = listState,
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 80.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 items(
-                    items = products,
+                    items = displayedProducts,
                     key = { it.id.ifBlank { "prod_${it.fila}_${it.producto}" } }
                 ) { product ->
                     ProductCard(
@@ -288,6 +322,33 @@ fun InventoryScreen(
                         onClick = { onProductClick(product) },
                         onQuickAdd = { onQuickAddToCart(product) }
                     )
+                }
+
+                if (visibleItemCount < products.size) {
+                    item(key = "load_more_footer") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 12.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = ElectricLime,
+                                    strokeWidth = 2.dp
+                                )
+                                Text(
+                                    text = "Mostrando ${displayedProducts.size} de ${products.size} productos...",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }

@@ -145,7 +145,7 @@ fun BrandSplashScreen(
                 .fillMaxSize()
                 .background(GraphiteBackground)
         ) {
-            // Video a pantalla completa sin controles y rellenando la vista con RESIZE_MODE_ZOOM
+            // Video adaptativo a cualquier tamaño y proporción de pantalla de celular (cubre todo el ancho y alto)
             AndroidView(
                 factory = { ctx ->
                     PlayerView(ctx).apply {
@@ -155,6 +155,10 @@ fun BrandSplashScreen(
                         resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                         setShutterBackgroundColor(android.graphics.Color.TRANSPARENT)
                         setBackgroundColor(android.graphics.Color.TRANSPARENT)
+                        layoutParams = android.view.ViewGroup.LayoutParams(
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                            android.view.ViewGroup.LayoutParams.MATCH_PARENT
+                        )
                     }
                 },
                 modifier = Modifier.fillMaxSize()

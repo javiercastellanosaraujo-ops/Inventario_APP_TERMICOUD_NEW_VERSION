@@ -145,6 +145,20 @@ fun TermicoudApp(viewModel: InventoryViewModel = viewModel()) {
         }
     }
 
+    // Lazy load data for sub-screens on demand
+    LaunchedEffect(showingFullHistoryScreen) {
+        if (showingFullHistoryScreen) {
+            viewModel.ensureSalesLoaded(limit = 100)
+            viewModel.ensureMovementsLoaded(limit = 150)
+        }
+    }
+
+    LaunchedEffect(showingUserMgmtScreen) {
+        if (showingUserMgmtScreen) {
+            viewModel.ensureAllUsersLoaded()
+        }
+    }
+
     // 0. Main Container with Animated Crossfade when Video Splash finishes
     Box(modifier = Modifier.fillMaxSize()) {
         // App Content (Login, Lock, or Main Dashboard)
@@ -304,8 +318,8 @@ fun TermicoudApp(viewModel: InventoryViewModel = viewModel()) {
                                     products = products,
                                     categories = categories,
                                     onAddStockToExisting = { prod, qty -> viewModel.addStockToProduct(prod, qty) },
-                                    onCreateNewProduct = { name, qty, price, cat, barcode, precioMayor, cantMinima ->
-                                        viewModel.createNewProduct(name, qty, price, cat, barcode, precioMayor, cantMinima)
+                                    onCreateNewProduct = { name, qty, price, cat, barcode, precioMayor, cantMinima, precioCompra ->
+                                        viewModel.createNewProduct(name, qty, price, cat, barcode, precioMayor, cantMinima, precioCompra)
                                     },
                                     onOpenQuickScan = { showingQuickScanScreen = true }
                                 )
@@ -432,8 +446,8 @@ fun TermicoudApp(viewModel: InventoryViewModel = viewModel()) {
                                 exchangeRate = exchangeRate,
                                 isAdmin = isCurrentUserAdmin,
                                 onDismiss = { viewModel.dismissBottomSheet() },
-                                onUpdateProduct = { prod, cant, price, barcode, precioMayor, cantMinima ->
-                                    viewModel.updateProductStockPriceAndBarcode(prod, cant, price, barcode, precioMayor, cantMinima)
+                                onUpdateProduct = { prod, cant, price, barcode, precioMayor, cantMinima, precioCompra ->
+                                    viewModel.updateProductStockPriceAndBarcode(prod, cant, price, barcode, precioMayor, cantMinima, precioCompra)
                                 },
                                 onAddToCartAndGoToSale = { prod, qty ->
                                     viewModel.addToCart(prod, qty)

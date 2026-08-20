@@ -126,7 +126,10 @@ fun CombosScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.weight(1f, fill = false),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Icon(
                         imageVector = Icons.Default.Layers,
                         contentDescription = null,
@@ -139,18 +142,24 @@ fun CombosScreen(
                             text = "COMBOS Y RECETAS",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
-                            color = TextPrimary
+                            color = TextPrimary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = "${combos.size} combos configurados",
                             style = MaterialTheme.typography.bodySmall,
                             color = TextSecondary,
-                            fontSize = 11.sp
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
                 }
 
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     IconButton(
                         onClick = onRefresh,
                         modifier = Modifier
@@ -175,7 +184,7 @@ fun CombosScreen(
                             contentColor = Color.Black
                         ),
                         shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
                         modifier = Modifier.testTag("btn_open_create_combo")
                     ) {
                         Icon(
@@ -187,9 +196,11 @@ fun CombosScreen(
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "Nuevo Combo",
-                            fontSize = 12.sp,
+                            fontSize = 11.5.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color.Black
+                            color = Color.Black,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
                 }
@@ -465,6 +476,13 @@ fun ComboCardItem(
                         text = String.format(Locale.US, "Bs. %.2f", precioBs),
                         style = MonoDataSmall.copy(color = TextSecondary, fontSize = 11.sp)
                     )
+                    if (combo.costoTotal > 0) {
+                        Text(
+                            text = String.format(Locale.US, "Ganancia: +$%.2f", combo.gananciaNeta),
+                            style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
+                            color = ElectricLime
+                        )
+                    }
                 }
             }
 
@@ -709,6 +727,10 @@ fun CreateComboDialog(
         selectedComponents.sumOf { (prod, qty) -> prod.precioUsd * qty }
     }
 
+    val sumOfCostPrices = remember(selectedComponents) {
+        selectedComponents.sumOf { (prod, qty) -> prod.precioCompra * qty }
+    }
+
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -822,14 +844,76 @@ fun CreateComboDialog(
                     )
                 }
 
-                if (sumOfIndividualPrices > 0) {
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = String.format(Locale.US, "Suma individual de componentes: $ %.2f USD", sumOfIndividualPrices),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TextMuted,
-                        fontSize = 11.sp
-                    )
+                val parsedPrice = precioUsdStr.replace(",", ".").toDoubleOrNull() ?: 0.0
+                if (sumOfIndividualPrices > 0 || sumOfCostPrices > 0 || parsedPrice > 0) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = GraphiteSurfaceVariant,
+                        shape = RoundedCornerShape(6.dp),
+                        border = androidx.compose.foundation.BorderStroke(0.8.dp, GraphiteBorder)
+                    ) {
+                        Column(modifier = Modifier.padding(10.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = "Suma venta individual:",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextMuted,
+                                    fontSize = 11.sp
+                                )
+                                Text(
+                                    text = String.format(Locale.US, "$ %.2f USD", sumOfIndividualPrices),
+                                    style = MonoDataSmall.copy(fontSize = 11.sp, color = TextPrimary)
+                                )
+                            }
+                            if (sumOfCostPrices > 0) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Text(
+                                        text = "Costo total de insumos:",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextMuted,
+                                        fontSize = 11.sp
+                                    )
+                                    Text(
+                                        text = String.format(Locale.US, "$ %.2f USD", sumOfCostPrices),
+                                        style = MonoDataSmall.copy(fontSize = 11.sp, color = TextSecondary)
+                                    )
+                                }
+                            }
+                            if (parsedPrice > 0) {
+                                val profit = parsedPrice - sumOfCostPrices
+                                val margin = (profit / parsedPrice) * 100.0
+                                val isPositive = profit >= 0
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = "Ganancia neta por combo:",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextPrimary
+                                    )
+                                    Text(
+                                        text = String.format(Locale.US, "%s$%.2f (%.1f%%)", if (isPositive) "+" else "", profit, margin),
+                                        style = MonoDataSmall.copy(
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isPositive) ElectricLime else MaterialTheme.colorScheme.error
+                                        )
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(14.dp))

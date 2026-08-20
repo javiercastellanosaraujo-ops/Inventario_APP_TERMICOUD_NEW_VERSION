@@ -8,6 +8,7 @@ data class Product(
     val producto: String = "",
     val cantidad: Int = 0,
     val precioUsd: Double = 0.0,
+    val precioCompra: Double = 0.0,
     val precioMayor: Double? = null,
     val cantidadMinimaMayor: Int? = null,
     val catalogo: String = "General",
@@ -17,7 +18,32 @@ data class Product(
     val modelo: String = "",
     val ubicacion: String = "",
     val minStock: Int = 5
-)
+) {
+    val costoUnitario: Double
+        get() = precioCompra
+
+    val gananciaDetal: Double
+        get() = if (precioCompra > 0) (precioUsd - precioCompra).coerceAtLeast(0.0) else precioUsd
+
+    val margenDetalPorcentaje: Double
+        get() = if (precioUsd > 0 && precioCompra > 0) {
+            ((precioUsd - precioCompra) / precioUsd) * 100.0
+        } else 0.0
+
+    val gananciaMayor: Double
+        get() {
+            val pm = precioMayor ?: precioUsd
+            return if (precioCompra > 0) (pm - precioCompra).coerceAtLeast(0.0) else pm
+        }
+
+    val margenMayorPorcentaje: Double
+        get() {
+            val pm = precioMayor ?: precioUsd
+            return if (pm > 0 && precioCompra > 0) {
+                ((pm - precioCompra) / pm) * 100.0
+            } else 0.0
+        }
+}
 
 enum class PriceMode {
     AUTOMATICO,
@@ -73,11 +99,25 @@ data class SaleItem(
     val producto: String = "",
     val cantidad: Int = 0,
     val precioUsd: Double = 0.0,
+    val precioCompra: Double = 0.0,
     val codigoBarras: String = "",
     val tipo: String = "producto", // "producto" o "combo"
     val componentes: List<ComboComponente> = emptyList(),
     val esPrecioMayor: Boolean = false
-)
+) {
+    val costoUnitario: Double
+        get() = if (tipo == "combo" && componentes.isNotEmpty()) {
+            componentes.sumOf { it.precioCompraUnitario * it.cantidadPorCombo }
+        } else {
+            precioCompra
+        }
+
+    val gananciaNetaUnitaria: Double
+        get() = (precioUsd - costoUnitario).coerceAtLeast(0.0)
+
+    val gananciaNetaTotal: Double
+        get() = gananciaNetaUnitaria * cantidad
+}
 
 data class Sale(
     val id: String = UUID.randomUUID().toString(),
@@ -97,7 +137,16 @@ data class Sale(
     val fechaReverso: Long? = null,
     val reversadoPorNombre: String? = null,
     val reversadoPorEmail: String? = null
-)
+) {
+    val costoTotalUsd: Double
+        get() = items.sumOf { it.costoUnitario * it.cantidad }
+
+    val gananciaNetaUsd: Double
+        get() = (totalUsd - costoTotalUsd).coerceAtLeast(0.0)
+
+    val margenGananciaPorcentaje: Double
+        get() = if (totalUsd > 0) (gananciaNetaUsd / totalUsd) * 100.0 else 0.0
+}
 
 enum class TipoMovimiento {
     ENTRADA, SALIDA, CAMBIO_PRECIO, REVERSO

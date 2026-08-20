@@ -31,12 +31,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.ui.theme.ElectricLime
 import com.example.ui.theme.GraphiteBorder
 import com.example.ui.theme.GraphiteSurface
-import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextSecondary
 
 data class NavItemData(
@@ -70,7 +70,7 @@ fun BottomNavBar(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 8.dp, horizontal = 4.dp),
+                .padding(vertical = 4.dp, horizontal = 2.dp),
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -83,15 +83,14 @@ fun BottomNavBar(
                         .weight(1f)
                         .clip(RoundedCornerShape(8.dp))
                         .clickable { onTabSelected(index) }
-                        .padding(vertical = 6.dp)
+                        .padding(vertical = 4.dp, horizontal = 1.dp)
                         .testTag(item.testTag),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
                     Box(
                         modifier = Modifier
-                            .height(28.dp)
-                            .padding(horizontal = 12.dp)
+                            .size(width = 36.dp, height = 24.dp)
                             .clip(RoundedCornerShape(12.dp))
                             .background(if (isSelected) ElectricLime.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Transparent),
                         contentAlignment = Alignment.Center
@@ -100,7 +99,7 @@ fun BottomNavBar(
                             imageVector = item.icon,
                             contentDescription = item.title,
                             tint = tint,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(19.dp)
                         )
                     }
 
@@ -108,9 +107,12 @@ fun BottomNavBar(
 
                     Text(
                         text = item.title,
-                        fontSize = 10.sp,
+                        fontSize = 9.sp,
                         fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = tint
+                        color = tint,
+                        maxLines = 1,
+                        softWrap = false,
+                        overflow = TextOverflow.Ellipsis
                     )
                 }
             }

@@ -72,8 +72,8 @@ object GananciasApiService {
         val url = URL(urlString)
         val connection = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
-            connectTimeout = 15000
-            readTimeout = 15000
+            connectTimeout = 30000
+            readTimeout = 30000
             doOutput = true
             instanceFollowRedirects = true
             setRequestProperty("Content-Type", "text/plain;charset=utf-8")
@@ -286,6 +286,15 @@ object GananciasApiService {
                     val minStock = pObj.optInt("minStock", pObj.optInt("min_stock",
                         pObj.optInt("stockMinimo", 5)))
 
+                    val precioCompra = when {
+                        pObj.has("precioCompra") && !pObj.isNull("precioCompra") -> pObj.optDouble("precioCompra", 0.0)
+                        pObj.has("precio_compra") && !pObj.isNull("precio_compra") -> pObj.optDouble("precio_compra", 0.0)
+                        pObj.has("costo") && !pObj.isNull("costo") -> pObj.optDouble("costo", 0.0)
+                        pObj.has("cost") && !pObj.isNull("cost") -> pObj.optDouble("cost", 0.0)
+                        pObj.has("costo_unitario") && !pObj.isNull("costo_unitario") -> pObj.optDouble("costo_unitario", 0.0)
+                        else -> 0.0
+                    }
+
                     productosList.add(
                         Product(
                             fila = fila,
@@ -293,6 +302,7 @@ object GananciasApiService {
                             producto = nombre,
                             cantidad = cantidad,
                             precioUsd = precioUsd,
+                            precioCompra = precioCompra,
                             precioMayor = precioMayor,
                             cantidadMinimaMayor = cantidadMinimaMayor,
                             catalogo = catalogo,
@@ -347,6 +357,7 @@ object GananciasApiService {
         producto: String,
         cantidad: Int,
         precioUsd: Double,
+        precioCompra: Double = 0.0,
         precioMayor: Double? = null,
         cantidadMinimaMayor: Int? = null,
         catalogo: String,
@@ -365,6 +376,9 @@ object GananciasApiService {
                 put("precio", precioUsd)
                 put("precio_usd", precioUsd)
                 put("precioUsd", precioUsd)
+                put("precio_compra", precioCompra)
+                put("precioCompra", precioCompra)
+                put("costo", precioCompra)
                 if (precioMayor != null && precioMayor > 0) {
                     put("precio_mayor", precioMayor)
                 } else {
@@ -388,13 +402,14 @@ object GananciasApiService {
     }
 
     /**
-     * POST {URL} con { accion: "actualizar_producto", fila, cantidad, precio_usd, precio_mayor, cantidad_minima_mayor }
+     * POST {URL} con { accion: "actualizar_producto", fila, cantidad, precio_usd, precio_mayor, cantidad_minima_mayor, precio_compra }
      */
     suspend fun actualizarProductoBackend(
         backendUrl: String,
         fila: Int,
         cantidad: Int? = null,
         precioUsd: Double? = null,
+        precioCompra: Double? = null,
         precioMayor: Double? = null,
         cantidadMinimaMayor: Int? = null
     ): Result<Boolean> = withContext(Dispatchers.IO) {
@@ -412,6 +427,11 @@ object GananciasApiService {
                     put("precio_usd", precioUsd)
                     put("precioUsd", precioUsd)
                     put("precio", precioUsd)
+                }
+                if (precioCompra != null) {
+                    put("precio_compra", precioCompra)
+                    put("precioCompra", precioCompra)
+                    put("costo", precioCompra)
                 }
                 if (precioMayor != null && precioMayor > 0) {
                     put("precio_mayor", precioMayor)
@@ -787,7 +807,7 @@ object GananciasApiService {
     }
 
     /**
-     * Sube silenciosamente el PDF de la Nota de Entrega a la carpeta de Google Drive del Administrador.
+     * Sube el PDF de la Nota de Entrega a la carpeta de Google Drive del Administrador a través del Google Apps Script.
      */
     suspend fun uploadInvoiceToDrive(
         url: String,
@@ -800,19 +820,29 @@ object GananciasApiService {
         mesAnio: String = ""
     ): Result<Boolean> = withContext(Dispatchers.IO) {
         val cleanUrl = url.trim()
-        if (cleanUrl.isBlank()) return@withContext Result.failure(Exception("URL vacía"))
+        if (cleanUrl.isBlank()) return@withContext Result.failure(Exception("URL del backend no configurada"))
 
         try {
-            val fileName = "Nota_Entrega_${folio.ifBlank { saleId }}.pdf"
+            val fileName = "Nota_Entrega_${folio.ifBlank { saleId.take(8) }}.pdf"
             val payload = JSONObject().apply {
                 put("accion", "guardar_nota_drive")
+                put("action", "guardar_nota_drive")
+                put("sale_id", saleId)
                 put("folio", folio)
                 put("cliente", cliente)
                 put("usuario", usuario)
                 put("total_usd", totalUsd)
+                put("totalUsd", totalUsd)
                 put("mes_anio", mesAnio)
+                put("mesAnio", mesAnio)
                 put("archivo_nombre", fileName)
+                put("fileName", fileName)
+                put("filename", fileName)
                 put("archivo_base64", pdfBase64)
+                put("pdfBase64", pdfBase64)
+                put("base64", pdfBase64)
+                put("fileData", pdfBase64)
+                put("mimeType", "application/pdf")
             }
 
             val response = executeHttpPost(cleanUrl, payload)

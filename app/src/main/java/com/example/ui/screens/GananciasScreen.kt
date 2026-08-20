@@ -378,32 +378,40 @@ fun GananciasScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.weight(1f, fill = false),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.TrendingUp,
                         contentDescription = null,
                         tint = ElectricLime,
-                        modifier = Modifier.size(26.dp)
+                        modifier = Modifier.size(24.dp)
                     )
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Column {
                         Text(
                             text = "GANANCIAS Y VENTAS",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold,
                             color = TextPrimary,
-                            letterSpacing = 1.sp
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                         Text(
-                            text = "Control de ventas, operadores y productos",
+                            text = "Control de ventas y productos",
                             style = MaterialTheme.typography.bodySmall,
                             color = TextSecondary,
-                            fontSize = 11.sp
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     }
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
                     // Export Button
                     Button(
                         onClick = { showExportDialog = true },
@@ -412,22 +420,24 @@ fun GananciasScreen(
                             contentColor = ElectricLime
                         ),
                         shape = RoundedCornerShape(8.dp),
-                        contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
                         modifier = Modifier
-                            .height(40.dp)
+                            .height(36.dp)
                             .border(1.dp, GraphiteBorder, RoundedCornerShape(8.dp))
                             .testTag("btn_export_ganancias")
                     ) {
                         Icon(
                             imageVector = Icons.Default.Share,
                             contentDescription = "Exportar",
-                            modifier = Modifier.size(16.dp)
+                            modifier = Modifier.size(15.dp)
                         )
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
                         Text(
                             text = "Exportar",
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
                         )
                     }
 
@@ -436,7 +446,7 @@ fun GananciasScreen(
                         onClick = onRefresh,
                         enabled = !isLoading,
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(36.dp)
                             .clip(RoundedCornerShape(8.dp))
                             .background(GraphiteSurface)
                             .border(1.dp, GraphiteBorder, RoundedCornerShape(8.dp))
