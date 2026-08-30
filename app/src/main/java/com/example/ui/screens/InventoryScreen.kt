@@ -51,6 +51,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.material.icons.filled.Warning
 import com.example.data.model.Product
 import com.example.data.model.StockFilter
+import com.example.ui.components.InventoryListSkeleton
 import com.example.ui.components.ProductCard
 import com.example.ui.theme.AlertRed
 import com.example.ui.theme.ElectricLime
@@ -284,7 +285,9 @@ fun InventoryScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         // Product Cards List
-        if (products.isEmpty()) {
+        if (isSyncing && products.isEmpty()) {
+            InventoryListSkeleton(count = 6)
+        } else if (products.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()

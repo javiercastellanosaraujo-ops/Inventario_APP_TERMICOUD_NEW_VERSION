@@ -30,6 +30,10 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -70,6 +74,13 @@ fun UserApprovalLockScreen(
 
     val primaryColor = if (isRejected) AlertRed else Color(0xFFFFB800)
     val dateFormat = SimpleDateFormat("dd/MM/yyyy • hh:mm a", Locale.getDefault())
+    var showTermiCoudDialog by remember { mutableStateOf(false) }
+
+    if (showTermiCoudDialog) {
+        com.example.ui.components.TermiCoudDialog(
+            onDismissRequest = { showTermiCoudDialog = false }
+        )
+    }
 
     Surface(
         modifier = Modifier.fillMaxSize(),
@@ -260,6 +271,20 @@ fun UserApprovalLockScreen(
                             color = TextPrimary,
                             fontWeight = FontWeight.Medium,
                             fontSize = 14.sp
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    androidx.compose.material3.TextButton(
+                        onClick = { showTermiCoudDialog = true },
+                        modifier = Modifier.testTag("btn_open_termicoud_lock")
+                    ) {
+                        Text(
+                            text = "Términos y Condiciones (TermiCoud)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextMuted,
+                            fontSize = 11.sp
                         )
                     }
                 }

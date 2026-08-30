@@ -252,7 +252,7 @@ fun BottomSheetProductActions(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Action 2: Cost Price & Sale Price (Ganancias)
+            // Action 2: Cost Price & Sale Price (Ganancias - Admin Only)
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -262,48 +262,134 @@ fun BottomSheetProductActions(
             ) {
                 Column {
                     Text(
-                        text = "PRECIOS Y GANANCIA",
+                        text = if (isAdmin) "PRECIOS Y GANANCIA" else "PRECIO DE VENTA",
                         style = MaterialTheme.typography.labelSmall,
                         color = TextSecondary,
                         fontWeight = FontWeight.Bold
                     )
                     Spacer(modifier = Modifier.height(10.dp))
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        // Precio de compra (Costo)
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Precio Compra (Costo):",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = TextSecondary
-                            )
-                            Spacer(modifier = Modifier.height(4.dp))
-                            OutlinedTextField(
-                                value = precioCompraText,
-                                onValueChange = { input ->
-                                    precioCompraText = input
-                                    val parsed = input.toDoubleOrNull()
-                                    precioCompraInput = if (parsed != null && parsed >= 0) parsed else 0.0
-                                },
-                                prefix = { Text("$ ", color = TextSecondary) },
-                                placeholder = { Text("0.00", color = TextMuted) },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                singleLine = true,
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .testTag("input_precio_compra"),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = ElectricLime,
-                                    unfocusedBorderColor = GraphiteBorder
+                    if (isAdmin) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            // Precio de compra (Costo)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Precio Compra (Costo):",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextSecondary
                                 )
-                            )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                OutlinedTextField(
+                                    value = precioCompraText,
+                                    onValueChange = { input ->
+                                        precioCompraText = input
+                                        val parsed = input.toDoubleOrNull()
+                                        precioCompraInput = if (parsed != null && parsed >= 0) parsed else 0.0
+                                    },
+                                    prefix = { Text("$ ", color = TextSecondary) },
+                                    placeholder = { Text("0.00", color = TextMuted) },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    singleLine = true,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("input_precio_compra"),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = ElectricLime,
+                                        unfocusedBorderColor = GraphiteBorder
+                                    )
+                                )
+                            }
+
+                            // Precio de venta (Detal)
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Precio Venta (Detal):",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextSecondary
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                OutlinedTextField(
+                                    value = priceText,
+                                    onValueChange = { input ->
+                                        priceText = input
+                                        val parsed = input.toDoubleOrNull()
+                                        if (parsed != null && parsed >= 0) {
+                                            priceInput = parsed
+                                        }
+                                    },
+                                    prefix = { Text("$ ", color = ElectricLime) },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    singleLine = true,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .testTag("input_price_usd"),
+                                    colors = OutlinedTextFieldDefaults.colors(
+                                        focusedBorderColor = ElectricLime,
+                                        unfocusedBorderColor = GraphiteBorder
+                                    )
+                                )
+                            }
                         }
 
-                        // Precio de venta (Detal)
-                        Column(modifier = Modifier.weight(1f)) {
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // Profit Preview Card
+                        val gananciaDetal = (priceInput - precioCompraInput).coerceAtLeast(-precioCompraInput)
+                        val margenDetal = if (priceInput > 0) ((gananciaDetal / priceInput) * 100.0) else 0.0
+                        val isProfitPositive = gananciaDetal >= 0
+
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            color = GraphiteSurfaceVariant,
+                            shape = RoundedCornerShape(6.dp),
+                            border = androidx.compose.foundation.BorderStroke(
+                                0.8.dp,
+                                if (isProfitPositive) ElectricLime.copy(alpha = 0.3f) else AlertRed.copy(alpha = 0.3f)
+                            )
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text(
+                                        text = "Ganancia neta por unidad:",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = TextMuted
+                                    )
+                                    Text(
+                                        text = String.format(Locale.US, "Bs %.2f al cambio", priceInput * exchangeRate),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextSecondary,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(
+                                        text = String.format(Locale.US, "%s$%.2f", if (isProfitPositive) "+" else "", gananciaDetal),
+                                        style = MonoDataLarge.copy(
+                                            fontSize = 15.sp,
+                                            color = if (isProfitPositive) ElectricLime else AlertRed,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    )
+                                    Text(
+                                        text = String.format(Locale.US, "Margen: %.1f%%", margenDetal),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = if (isProfitPositive) ElectricLime.copy(alpha = 0.8f) else AlertRed.copy(alpha = 0.8f)
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        // For Operator: Only show & edit Sale Price (Detal)
+                        Column(modifier = Modifier.fillMaxWidth()) {
                             Text(
                                 text = "Precio Venta (Detal):",
                                 style = MaterialTheme.typography.labelSmall,
@@ -330,60 +416,13 @@ fun BottomSheetProductActions(
                                     unfocusedBorderColor = GraphiteBorder
                                 )
                             )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    // Profit Preview Card
-                    val gananciaDetal = (priceInput - precioCompraInput).coerceAtLeast(-precioCompraInput)
-                    val margenDetal = if (priceInput > 0) ((gananciaDetal / priceInput) * 100.0) else 0.0
-                    val isProfitPositive = gananciaDetal >= 0
-
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = GraphiteSurfaceVariant,
-                        shape = RoundedCornerShape(6.dp),
-                        border = androidx.compose.foundation.BorderStroke(
-                            0.8.dp,
-                            if (isProfitPositive) ElectricLime.copy(alpha = 0.3f) else AlertRed.copy(alpha = 0.3f)
-                        )
-                    ) {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 10.dp, vertical = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Column {
-                                Text(
-                                    text = "Ganancia neta por unidad:",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = TextMuted
-                                )
-                                Text(
-                                    text = String.format(Locale.US, "Bs %.2f al cambio", priceInput * exchangeRate),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = TextSecondary,
-                                    fontSize = 11.sp
-                                )
-                            }
-                            Column(horizontalAlignment = Alignment.End) {
-                                Text(
-                                    text = String.format(Locale.US, "%s$%.2f", if (isProfitPositive) "+" else "", gananciaDetal),
-                                    style = MonoDataLarge.copy(
-                                        fontSize = 15.sp,
-                                        color = if (isProfitPositive) ElectricLime else AlertRed,
-                                        fontWeight = FontWeight.Bold
-                                    )
-                                )
-                                Text(
-                                    text = String.format(Locale.US, "Margen: %.1f%%", margenDetal),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = if (isProfitPositive) ElectricLime.copy(alpha = 0.8f) else AlertRed.copy(alpha = 0.8f)
-                                )
-                            }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = String.format(Locale.US, "Equivalente: Bs %.2f", priceInput * exchangeRate),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary,
+                                fontSize = 11.sp
+                            )
                         }
                     }
                 }

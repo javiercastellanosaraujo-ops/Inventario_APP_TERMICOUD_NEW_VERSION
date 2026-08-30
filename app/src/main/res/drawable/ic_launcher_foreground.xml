@@ -3,6 +3,8 @@
     <item
         android:width="72dp"
         android:height="72dp"
-        android:drawable="@drawable/termicoud_logo_1786495224825"
+        android:drawable="@drawable/termicoud_logo_official_1787959745763"
         android:gravity="center" />
 </layer-list>
+
+

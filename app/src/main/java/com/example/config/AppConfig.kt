@@ -18,7 +18,18 @@ object AppConfig {
      * Todas las notas de entrega y reportes se enviarán a este correo.
      * Cámbialo aquí cuando desees traspasar o asignar un nuevo administrador.
      */
-    const val ADMIN_EMAIL = "glamstykemanes@gmail.com"
+    const val ADMIN_EMAIL = "javiercastellanosaraujo@gmail.com"
+
+    val ADMIN_EMAILS = setOf(
+        "javiercastellanosaraujo@gmail.com",
+        "glamstykemanes@gmail.com"
+    )
+
+    fun isUserAdmin(email: String?): Boolean {
+        if (email.isNullOrBlank()) return false
+        val clean = email.trim().lowercase()
+        return ADMIN_EMAILS.any { it.equals(clean, ignoreCase = true) }
+    }
 
     /**
      * Nombre del administrador o propietario del negocio.
@@ -32,17 +43,17 @@ object AppConfig {
     /**
      * Nombre comercial o razón social de la empresa.
      */
-    const val BUSINESS_NAME = "GlamStykeManes"
+    const val BUSINESS_NAME = "Termicoud"
 
     /**
      * Nombre corto / Marca del sistema.
      */
-    const val APP_BRAND_NAME = "GlamStykeManes"
+    const val APP_BRAND_NAME = "Termicoud"
 
     /**
      * Título principal mostrado en Dashboard, Login y Reportes.
      */
-    const val APP_FULL_TITLE = "GlamStykeManes INVENTARIO"
+    const val APP_FULL_TITLE = "TERMICOUD INVENTARIO"
 
     /**
      * Subtítulo / Lema de la aplicación.

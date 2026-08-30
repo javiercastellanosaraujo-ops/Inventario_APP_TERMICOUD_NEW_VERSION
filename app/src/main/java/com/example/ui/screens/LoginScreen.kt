@@ -3,6 +3,7 @@ package com.example.ui.screens
 import android.app.Activity
 import android.util.Log
 import android.widget.Toast
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -45,8 +46,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
@@ -59,6 +62,7 @@ import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
 import androidx.credentials.exceptions.GetCredentialException
+import com.example.R
 import com.example.config.AppConfig
 import com.example.data.model.UserSession
 import com.google.android.gms.common.ConnectionResult
@@ -90,6 +94,13 @@ fun LoginScreen(
 
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    var showTermiCoudDialog by remember { mutableStateOf(false) }
+
+    if (showTermiCoudDialog) {
+        com.example.ui.components.TermiCoudDialog(
+            onDismissRequest = { showTermiCoudDialog = false }
+        )
+    }
 
     Box(
         modifier = Modifier
@@ -115,16 +126,19 @@ fun LoginScreen(
                 // App Logo / Badge
                 Box(
                     modifier = Modifier
-                        .size(64.dp)
+                        .size(80.dp)
                         .clip(CircleShape)
                         .background(ElectricLime.copy(alpha = 0.15f)),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Inventory,
-                        contentDescription = null,
-                        tint = ElectricLime,
-                        modifier = Modifier.size(36.dp)
+                    Image(
+                        painter = painterResource(id = R.drawable.termicoud_logo_official_1787959745763),
+                        contentDescription = "Logo Termicoud",
+                        modifier = Modifier
+                            .size(76.dp)
+                            .clip(CircleShape)
+                            .border(2.dp, ElectricLime, CircleShape),
+                        contentScale = ContentScale.Crop
                     )
                 }
 
@@ -446,6 +460,21 @@ fun LoginScreen(
                             fontSize = 11.sp
                         )
                     }
+                }
+
+                Spacer(modifier = Modifier.height(18.dp))
+
+                // TermiCoud Terms and Conditions Link
+                TextButton(
+                    onClick = { showTermiCoudDialog = true },
+                    modifier = Modifier.testTag("btn_open_termicoud_login")
+                ) {
+                    Text(
+                        text = "Términos y Condiciones (TermiCoud)",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = TextMuted,
+                        fontSize = 11.sp
+                    )
                 }
             }
         }

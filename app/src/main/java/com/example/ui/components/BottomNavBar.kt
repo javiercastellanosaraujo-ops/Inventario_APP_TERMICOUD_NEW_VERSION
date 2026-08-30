@@ -34,32 +34,40 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.runtime.remember
 import com.example.ui.theme.ElectricLime
 import com.example.ui.theme.GraphiteBorder
 import com.example.ui.theme.GraphiteSurface
 import com.example.ui.theme.TextSecondary
 
 data class NavItemData(
+    val tabIndex: Int,
     val title: String,
     val icon: ImageVector,
-    val testTag: String
+    val testTag: String,
+    val adminOnly: Boolean = false
 )
 
-val bottomNavItems = listOf(
-    NavItemData("Inicio", Icons.Default.Home, "nav_inicio"),
-    NavItemData("Inventario", Icons.Default.Inventory2, "nav_inventario"),
-    NavItemData("Salida", Icons.Default.PointOfSale, "nav_salida"),
-    NavItemData("Entrada", Icons.Default.AddBox, "nav_entrada"),
-    NavItemData("Combos", Icons.Default.Layers, "nav_combos"),
-    NavItemData("Ganancias", Icons.Default.TrendingUp, "nav_ganancias"),
-    NavItemData("Tasa", Icons.Default.Savings, "nav_tasa")
+val allNavItems = listOf(
+    NavItemData(0, "Inicio", Icons.Default.Home, "nav_inicio"),
+    NavItemData(1, "Inventario", Icons.Default.Inventory2, "nav_inventario"),
+    NavItemData(2, "Salida", Icons.Default.PointOfSale, "nav_salida"),
+    NavItemData(3, "Entrada", Icons.Default.AddBox, "nav_entrada"),
+    NavItemData(4, "Combos", Icons.Default.Layers, "nav_combos"),
+    NavItemData(5, "Ganancias", Icons.Default.TrendingUp, "nav_ganancias", adminOnly = true),
+    NavItemData(6, "Tasa", Icons.Default.Savings, "nav_tasa")
 )
 
 @Composable
 fun BottomNavBar(
     selectedTab: Int,
+    isAdmin: Boolean = false,
     onTabSelected: (Int) -> Unit
 ) {
+    val items = remember(isAdmin) {
+        if (isAdmin) allNavItems else allNavItems.filter { !it.adminOnly }
+    }
+
     Box(
         modifier = Modifier
             .fillMaxWidth()
@@ -74,15 +82,15 @@ fun BottomNavBar(
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            bottomNavItems.forEachIndexed { index, item ->
-                val isSelected = selectedTab == index
+            items.forEach { item ->
+                val isSelected = selectedTab == item.tabIndex
                 val tint = if (isSelected) ElectricLime else TextSecondary
 
                 Column(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(8.dp))
-                        .clickable { onTabSelected(index) }
+                        .clickable { onTabSelected(item.tabIndex) }
                         .padding(vertical = 4.dp, horizontal = 1.dp)
                         .testTag(item.testTag),
                     horizontalAlignment = Alignment.CenterHorizontally,

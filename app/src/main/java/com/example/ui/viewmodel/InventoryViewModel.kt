@@ -28,6 +28,9 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import com.google.firebase.firestore.Query
 import com.google.firebase.firestore.SetOptions
+import com.example.data.local.TermicoudDatabase
+import com.example.data.local.toEntity
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -46,6 +49,9 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
     private val firestore = FirebaseFirestore.getInstance()
     private val auth = FirebaseAuth.getInstance()
     private val preferencesRepo = AppPreferencesRepository(application)
+    private val localDb = TermicoudDatabase.getDatabase(application)
+    private val productDao = localDb.productDao()
+    private val saleDao = localDb.saleDao()
 
     // Firestore listener registrations
     private var productsListener: ListenerRegistration? = null
@@ -85,7 +91,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     val isCurrentUserAdmin: StateFlow<Boolean> = _appUser.map { user ->
-        user != null && (user.rol.equals("admin", ignoreCase = true) || user.email.equals(ADMIN_EMAIL, ignoreCase = true))
+        user != null && (user.rol.equals("admin", ignoreCase = true) || AppConfig.isUserAdmin(user.email))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     // User preferences & settings
@@ -208,6 +214,19 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
     init {
         initAuthListener()
         fetchExchangeRateFromBackend()
+        // Carga inicial ultra-rápida desde Room Database local (soporte offline e instant startup)
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                productDao.getAllProducts().collect { localEntities ->
+                    if (_products.value.isEmpty() && localEntities.isNotEmpty()) {
+                        val localList = localEntities.map { it.toDomain() }.sortedWith(compareBy({ it.catalogo }, { it.producto }))
+                        _products.value = localList
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w("InventoryViewModel", "Aviso cargando cache local Room: ${e.message}")
+            }
+        }
     }
 
     private fun listenToSharedExchangeRate() {
@@ -215,7 +234,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         rateDocListener = firestore.collection("configuracion").document("tasa_bcv")
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    Log.e("InventoryViewModel", "Error escuchando tasa_bcv en Firestore: ${error.message}")
+                    Log.w("InventoryViewModel", "Aviso escuchando tasa_bcv en Firestore (${error.message}). Usando tasa configurada o por defecto.")
                     return@addSnapshotListener
                 }
                 if (snapshot != null && snapshot.exists()) {
@@ -306,7 +325,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
     fun syncUserProfile(email: String, displayName: String) {
         if (email.isBlank()) return
         val normalizedEmail = email.lowercase().trim()
-        val isAdminEmail = normalizedEmail.equals(ADMIN_EMAIL, ignoreCase = true)
+        val isAdminEmail = AppConfig.isUserAdmin(normalizedEmail)
 
         _isCheckingUserApproval.value = true
 
@@ -319,18 +338,38 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         userDocListener = userDocRef.addSnapshotListener { snapshot, error ->
             _isCheckingUserApproval.value = false
             if (error != null) {
-                Log.e("InventoryViewModel", "Error leyendo estado de usuario: ${error.message}")
+                Log.w("InventoryViewModel", "Aviso leyendo estado de usuario (${error.message}).")
+                if (_appUser.value == null) {
+                    val fallbackUser = AppUser(
+                        email = normalizedEmail,
+                        nombre = displayName,
+                        estado = if (isAdminEmail) "aprobado" else "pendiente",
+                        fechaSolicitud = System.currentTimeMillis(),
+                        fechaAprobacion = if (isAdminEmail) System.currentTimeMillis() else null,
+                        aprobadoPorEmail = if (isAdminEmail) "Sistema" else null,
+                        rol = if (isAdminEmail) "admin" else "operador"
+                    )
+                    _appUser.value = fallbackUser
+                    if (isAdminEmail) {
+                        startFirestoreDataListeners()
+                        listenToAllUsers()
+                    } else {
+                        stopFirestoreDataListeners()
+                    }
+                }
                 return@addSnapshotListener
             }
 
             if (snapshot != null && snapshot.exists()) {
+                val rawEstado = snapshot.getString("estado") ?: if (isAdminEmail) "aprobado" else "pendiente"
+                val estado = if (isAdminEmail) "aprobado" else rawEstado
                 val user = AppUser(
                     email = snapshot.getString("email") ?: normalizedEmail,
                     nombre = snapshot.getString("nombre") ?: displayName,
-                    estado = if (isAdminEmail) "aprobado" else (snapshot.getString("estado") ?: "pendiente"),
+                    estado = estado,
                     fechaSolicitud = snapshot.getLong("fechaSolicitud") ?: System.currentTimeMillis(),
-                    fechaAprobacion = snapshot.getLong("fechaAprobacion"),
-                    aprobadoPorEmail = snapshot.getString("aprobadoPorEmail"),
+                    fechaAprobacion = if (isAdminEmail) (snapshot.getLong("fechaAprobacion") ?: System.currentTimeMillis()) else snapshot.getLong("fechaAprobacion"),
+                    aprobadoPorEmail = if (isAdminEmail) (snapshot.getString("aprobadoPorEmail") ?: "Sistema") else snapshot.getString("aprobadoPorEmail"),
                     rol = if (isAdminEmail) "admin" else (snapshot.getString("rol") ?: "operador")
                 )
                 _appUser.value = user
@@ -350,7 +389,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                 val initialRol = if (isAdminEmail) "admin" else "operador"
                 val now = System.currentTimeMillis()
 
-                val newUserMap = mutableMapOf<String, Any>(
+                val newUserMap = mutableMapOf<String, Any?>(
                     "email" to normalizedEmail,
                     "nombre" to displayName,
                     "estado" to initialEstado,
@@ -363,7 +402,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                     newUserMap["aprobadoPorEmail"] = "Sistema"
                 }
 
-                userDocRef.set(newUserMap).addOnSuccessListener {
+                userDocRef.set(newUserMap.filterValues { it != null }, com.google.firebase.firestore.SetOptions.merge()).addOnSuccessListener {
                     _appUser.value = AppUser(
                         email = normalizedEmail,
                         nombre = displayName,
@@ -379,9 +418,25 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                         if (isAdminEmail) {
                             listenToAllUsers()
                         }
+                    } else {
+                        stopFirestoreDataListeners()
                     }
                 }.addOnFailureListener { e ->
-                    Log.e("InventoryViewModel", "Error creando usuario: ${e.message}")
+                    Log.w("InventoryViewModel", "Aviso registrando usuario: ${e.message}.")
+                    _appUser.value = AppUser(
+                        email = normalizedEmail,
+                        nombre = displayName,
+                        estado = if (isAdminEmail) "aprobado" else "pendiente",
+                        fechaSolicitud = now,
+                        fechaAprobacion = if (isAdminEmail) now else null,
+                        aprobadoPorEmail = if (isAdminEmail) "Sistema" else null,
+                        rol = initialRol
+                    )
+                    if (isAdminEmail) {
+                        startFirestoreDataListeners()
+                    } else {
+                        stopFirestoreDataListeners()
+                    }
                     _isCheckingUserApproval.value = false
                 }
             }
@@ -390,11 +445,11 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
 
     fun ensureAllUsersLoaded() {
         if (allUsersListener != null) return
+        // No requerir orderBy para evitar fallos por índices faltantes en Firestore
         allUsersListener = firestore.collection("usuarios")
-            .orderBy("fechaSolicitud", Query.Direction.DESCENDING)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    Log.e("InventoryViewModel", "Error escuchando usuarios: ${error.message}")
+                    Log.w("InventoryViewModel", "Aviso escuchando usuarios (${error.message})")
                     return@addSnapshotListener
                 }
 
@@ -413,7 +468,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                         } catch (e: Exception) {
                             null
                         }
-                    }
+                    }.sortedByDescending { it.fechaSolicitud }
                     _allUsers.value = userList
                 }
             }
@@ -430,11 +485,15 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             try {
                 firestore.collection("usuarios").document(normalized)
-                    .update(mapOf(
-                        "estado" to "aprobado",
-                        "fechaAprobacion" to System.currentTimeMillis(),
-                        "aprobadoPorEmail" to adminEmail
-                    )).await()
+                    .set(
+                        mapOf(
+                            "email" to normalized,
+                            "estado" to "aprobado",
+                            "fechaAprobacion" to System.currentTimeMillis(),
+                            "aprobadoPorEmail" to adminEmail
+                        ),
+                        com.google.firebase.firestore.SetOptions.merge()
+                    ).await()
                 _successMessage.value = "Usuario $normalized aprobado con éxito"
             } catch (e: Exception) {
                 Log.e("InventoryViewModel", "Error aprobando usuario: ${e.message}")
@@ -449,13 +508,45 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         viewModelScope.launch {
             try {
                 firestore.collection("usuarios").document(normalized)
-                    .update(mapOf(
-                        "estado" to "rechazado"
-                    )).await()
+                    .set(
+                        mapOf(
+                            "email" to normalized,
+                            "estado" to "rechazado"
+                        ),
+                        com.google.firebase.firestore.SetOptions.merge()
+                    ).await()
                 _successMessage.value = "Acceso revocado para $normalized"
             } catch (e: Exception) {
                 Log.e("InventoryViewModel", "Error rechazando usuario: ${e.message}")
                 _errorMessage.value = "Error al actualizar usuario: ${e.localizedMessage}"
+            }
+        }
+    }
+
+    fun preApproveOperator(email: String, name: String) {
+        val adminEmail = _currentUser.value?.email ?: ADMIN_EMAIL
+        val normalized = email.lowercase().trim()
+        if (normalized.isBlank()) return
+
+        viewModelScope.launch {
+            try {
+                val now = System.currentTimeMillis()
+                val userData = mapOf(
+                    "email" to normalized,
+                    "nombre" to name.ifBlank { "Operador" },
+                    "estado" to "aprobado",
+                    "rol" to "operador",
+                    "fechaSolicitud" to now,
+                    "fechaAprobacion" to now,
+                    "aprobadoPorEmail" to adminEmail
+                )
+                firestore.collection("usuarios").document(normalized)
+                    .set(userData, com.google.firebase.firestore.SetOptions.merge())
+                    .await()
+                _successMessage.value = "Operador $normalized autorizado y pre-aprobado"
+            } catch (e: Exception) {
+                Log.e("InventoryViewModel", "Error pre-aprobando operador: ${e.message}")
+                _errorMessage.value = "Error al autorizar operador: ${e.localizedMessage}"
             }
         }
     }
@@ -518,8 +609,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
             .addSnapshotListener { snapshot, error ->
                 _isSyncing.value = false
                 if (error != null) {
-                    Log.e("InventoryViewModel", "Error escuchando productos en Firestore: ${error.message}", error)
-                    _errorMessage.value = "Error conectando a Firestore: ${error.localizedMessage}"
+                    Log.w("InventoryViewModel", "Aviso escuchando productos en Firestore (${error.message}). Usando base de datos local.")
                     return@addSnapshotListener
                 }
 
@@ -602,6 +692,14 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                         }.sortedWith(compareBy({ it.catalogo }, { it.producto }))
 
                         _products.value = productList
+                        // Sincronizar cache persistente en Room Database
+                        viewModelScope.launch(Dispatchers.IO) {
+                            try {
+                                productDao.insertOrUpdateAll(productList.map { it.toEntity() })
+                            } catch (e: Exception) {
+                                Log.w("InventoryViewModel", "Aviso sincronizando Room: ${e.message}")
+                            }
+                        }
                     }
                 }
             }
@@ -621,11 +719,12 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
             .limit(limit)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    Log.e("InventoryViewModel", "Error escuchando ventas: ${error.message}")
+                    Log.w("InventoryViewModel", "Aviso escuchando ventas (${error.message})")
                     return@addSnapshotListener
                 }
 
                 if (snapshot != null) {
+                    val currentProducts = _products.value
                     val salesList = snapshot.documents.mapNotNull { doc ->
                         try {
                             val itemsRaw = doc.get("items") as? List<Map<String, Any>> ?: emptyList()
@@ -633,16 +732,40 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                                 val prodName = (m["producto"] as? String) ?: (m["nombre"] as? String) ?: (m["productoNombre"] as? String) ?: ""
                                 val tipo = (m["tipo"] as? String) ?: "producto"
                                 val precio = (m["precioUsd"] as? Number)?.toDouble() ?: (m["precio_usd"] as? Number)?.toDouble() ?: (m["precio"] as? Number)?.toDouble() ?: 0.0
-                                val precioCompra = (m["precioCompra"] as? Number)?.toDouble() ?: (m["precio_compra"] as? Number)?.toDouble() ?: (m["costo"] as? Number)?.toDouble() ?: 0.0
+                                val precioCompraRaw = (m["precioCompra"] as? Number)?.toDouble() ?: (m["precio_compra"] as? Number)?.toDouble() ?: (m["costo"] as? Number)?.toDouble() ?: 0.0
                                 val cant = (m["cantidad"] as? Number)?.toInt() ?: (m["qty"] as? Number)?.toInt() ?: 0
                                 val fila = (m["fila"] as? Number)?.toInt() ?: 0
+                                
+                                val compRaw = m["componentes"] as? List<Map<String, Any>> ?: emptyList()
+                                val componentes = compRaw.map { c ->
+                                    ComboComponente(
+                                        fila = (c["fila"] as? Number)?.toInt() ?: 0,
+                                        nombre = (c["nombre"] as? String) ?: "",
+                                        cantidadPorCombo = (c["cantidadPorCombo"] as? Number)?.toInt() ?: 1,
+                                        precioCompraUnitario = (c["precioCompraUnitario"] as? Number)?.toDouble() ?: 0.0,
+                                        precioVentaUnitario = (c["precioVentaUnitario"] as? Number)?.toDouble() ?: 0.0
+                                    )
+                                }
+
+                                val effectivePrecioCompra = when {
+                                    precioCompraRaw > 0.0 -> precioCompraRaw
+                                    tipo == "combo" && componentes.isNotEmpty() -> componentes.sumOf { it.precioCompraUnitario * it.cantidadPorCombo }
+                                    else -> {
+                                        val matched = currentProducts.find { p ->
+                                            p.producto.equals(prodName, ignoreCase = true) || (p.codigo.isNotBlank() && p.codigo.equals(prodName, ignoreCase = true))
+                                        }
+                                        matched?.precioCompra ?: 0.0
+                                    }
+                                }
+
                                 SaleItem(
                                     fila = fila,
                                     producto = prodName,
                                     cantidad = cant,
                                     precioUsd = precio,
-                                    precioCompra = precioCompra,
-                                    tipo = tipo
+                                    precioCompra = effectivePrecioCompra,
+                                    tipo = tipo,
+                                    componentes = componentes
                                 )
                             }
 
@@ -695,7 +818,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
             .limit(limit)
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    Log.e("InventoryViewModel", "Error escuchando movimientos: ${error.message}")
+                    Log.w("InventoryViewModel", "Aviso escuchando movimientos (${error.message})")
                     return@addSnapshotListener
                 }
 
@@ -743,7 +866,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         combosListener = firestore.collection("combos")
             .addSnapshotListener { snapshot, error ->
                 if (error != null) {
-                    Log.e("InventoryViewModel", "Error escuchando combos en Firestore: ${error.message}")
+                    Log.w("InventoryViewModel", "Aviso escuchando combos en Firestore (${error.message})")
                     return@addSnapshotListener
                 }
 
@@ -864,8 +987,10 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
     }
 
     fun selectTab(tabIndex: Int) {
-        _selectedTab.value = tabIndex
-        when (tabIndex) {
+        val isAdmin = isCurrentUserAdmin.value
+        val effectiveTab = if (tabIndex == 5 && !isAdmin) 0 else tabIndex
+        _selectedTab.value = effectiveTab
+        when (effectiveTab) {
             0 -> {
                 ensureSalesLoaded(limit = 20)
             }
@@ -883,10 +1008,12 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                 fetchCombos()
             }
             5 -> {
-                // Ganancias: fetch data and ensure sales are loaded
-                ensureSalesLoaded(limit = 100)
-                fetchGanancias()
-                fetchHistorialMeses()
+                // Ganancias: fetch data and ensure sales are loaded (only for admin)
+                if (isAdmin) {
+                    ensureSalesLoaded(limit = 100)
+                    fetchGanancias()
+                    fetchHistorialMeses()
+                }
             }
         }
     }
@@ -1907,41 +2034,87 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                     }
 
                     val itemsRaw = saleSnapshot.get("items") as? List<Map<String, Any>> ?: emptyList()
-                    val items = itemsRaw.map { m ->
-                        SaleItem(
-                            fila = (m["fila"] as? Number)?.toInt() ?: 0,
-                            producto = m["producto"] as? String ?: "",
-                            cantidad = (m["cantidad"] as? Number)?.toInt() ?: 0,
-                            precioUsd = (m["precioUsd"] as? Number)?.toDouble() ?: 0.0
-                        )
-                    }
 
-                    // Restore stock for all items
-                    for (item in items) {
-                        val prodRef = firestore.collection("productos").document("prod_${item.fila}")
-                        val prodSnap = transaction.get(prodRef)
-                        if (prodSnap.exists()) {
-                            val currentStock = (prodSnap.getLong("cantidad") ?: 0L).toInt()
-                            transaction.update(prodRef, "cantidad", currentStock + item.cantidad)
+                    // Restore stock for all items (handling both single products and combos)
+                    for (m in itemsRaw) {
+                        val tipo = m["tipo"] as? String ?: "producto"
+                        val cant = (m["cantidad"] as? Number)?.toInt() ?: 1
+                        val prodName = (m["producto"] as? String) ?: (m["nombre"] as? String) ?: ""
+                        val precioUsd = (m["precioUsd"] as? Number)?.toDouble() ?: 0.0
+
+                        if (tipo == "combo" || m.containsKey("componentes")) {
+                            // Combo: restore stock for each component
+                            val componentesRaw = m["componentes"] as? List<Map<String, Any>> ?: emptyList()
+                            for (comp in componentesRaw) {
+                                val compFila = (comp["fila"] as? Number)?.toInt() ?: 0
+                                val compNombre = comp["nombre"] as? String ?: ""
+                                val cantPorCombo = (comp["cantidadPorCombo"] as? Number)?.toInt()
+                                    ?: (comp["cantidad"] as? Number)?.toInt()
+                                    ?: 1
+                                val qtyToRestore = cantPorCombo * cant
+
+                                if (compFila > 0) {
+                                    val prodRef = firestore.collection("productos").document("prod_$compFila")
+                                    val prodSnap = transaction.get(prodRef)
+                                    if (prodSnap.exists()) {
+                                        val currentStock = (prodSnap.getLong("cantidad") ?: 0L).toInt()
+                                        transaction.update(prodRef, "cantidad", currentStock + qtyToRestore)
+                                    }
+
+                                    // Write restoration movement for component
+                                    val movId = "mov_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(6)}"
+                                    val movDocRef = firestore.collection("movimientos").document(movId)
+                                    val movData = mapOf(
+                                        "id" to movId,
+                                        "productoFila" to compFila,
+                                        "productoNombre" to compNombre.ifBlank { "Componente de $prodName" },
+                                        "tipo" to TipoMovimiento.REVERSO.name,
+                                        "cantidad" to qtyToRestore,
+                                        "fecha" to System.currentTimeMillis(),
+                                        "motivo" to "REVERSO DE VENTA COMBO '$prodName' (${ventaId.take(8)}) por $userName",
+                                        "precioUnitarioUsd" to precioUsd,
+                                        "usuarioEmail" to userEmail,
+                                        "usuarioNombre" to userName,
+                                        "esReversado" to false
+                                    )
+                                    transaction.set(movDocRef, movData)
+                                }
+                            }
+                        } else {
+                            // Regular Product
+                            val fila = (m["fila"] as? Number)?.toInt() ?: 0
+                            val prodId = m["productoId"] as? String ?: ""
+                            val prodRef = if (prodId.isNotBlank()) {
+                                firestore.collection("productos").document(prodId)
+                            } else {
+                                firestore.collection("productos").document("prod_$fila")
+                            }
+
+                            val prodSnap = transaction.get(prodRef)
+                            if (prodSnap.exists()) {
+                                val currentStock = (prodSnap.getLong("cantidad") ?: 0L).toInt()
+                                transaction.update(prodRef, "cantidad", currentStock + cant)
+                            }
+
+                            // Write restoration movement
+                            val movId = "mov_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(6)}"
+                            val movDocRef = firestore.collection("movimientos").document(movId)
+                            val movData = mapOf(
+                                "id" to movId,
+                                "productoId" to prodId,
+                                "productoFila" to fila,
+                                "productoNombre" to prodName,
+                                "tipo" to TipoMovimiento.REVERSO.name,
+                                "cantidad" to cant,
+                                "fecha" to System.currentTimeMillis(),
+                                "motivo" to "REVERSO DE VENTA (${ventaId.take(8)}) por $userName",
+                                "precioUnitarioUsd" to precioUsd,
+                                "usuarioEmail" to userEmail,
+                                "usuarioNombre" to userName,
+                                "esReversado" to false
+                            )
+                            transaction.set(movDocRef, movData)
                         }
-
-                        // Write restoration movement
-                        val movId = "mov_${System.currentTimeMillis()}_${UUID.randomUUID().toString().take(6)}"
-                        val movDocRef = firestore.collection("movimientos").document(movId)
-                        val movData = mapOf(
-                            "id" to movId,
-                            "productoFila" to item.fila,
-                            "productoNombre" to item.producto,
-                            "tipo" to TipoMovimiento.REVERSO.name,
-                            "cantidad" to item.cantidad,
-                            "fecha" to System.currentTimeMillis(),
-                            "motivo" to "REVERSO DE VENTA (${ventaId.take(8)}) por $userName",
-                            "precioUnitarioUsd" to item.precioUsd,
-                            "usuarioEmail" to userEmail,
-                            "usuarioNombre" to userName,
-                            "esReversado" to false
-                        )
-                        transaction.set(movDocRef, movData)
                     }
 
                     // Mark sale as reversado
@@ -1984,17 +2157,24 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                     val tipo = movSnap.getString("tipo") ?: "ENTRADA"
                     val cantidad = (movSnap.getLong("cantidad") ?: 0L).toInt()
                     val fila = (movSnap.getLong("productoFila") ?: 0L).toInt()
+                    val prodId = movSnap.getString("productoId") ?: ""
 
-                    val prodRef = firestore.collection("productos").document("prod_$fila")
-                    val prodSnap = transaction.get(prodRef)
-                    if (prodSnap.exists()) {
-                        val currentStock = (prodSnap.getLong("cantidad") ?: 0L).toInt()
-                        val newStock = if (tipo == "SALIDA") {
-                            currentStock + cantidad
+                    if (tipo != "CAMBIO_PRECIO" && cantidad > 0) {
+                        val prodRef = if (prodId.isNotBlank()) {
+                            firestore.collection("productos").document(prodId)
                         } else {
-                            (currentStock - cantidad).coerceAtLeast(0)
+                            firestore.collection("productos").document("prod_$fila")
                         }
-                        transaction.update(prodRef, "cantidad", newStock)
+                        val prodSnap = transaction.get(prodRef)
+                        if (prodSnap.exists()) {
+                            val currentStock = (prodSnap.getLong("cantidad") ?: 0L).toInt()
+                            val newStock = if (tipo == "SALIDA") {
+                                currentStock + cantidad
+                            } else {
+                                (currentStock - cantidad).coerceAtLeast(0)
+                            }
+                            transaction.update(prodRef, "cantidad", newStock)
+                        }
                     }
 
                     transaction.update(movRef, mapOf(
@@ -2172,17 +2352,27 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
             val totalBs = userSales.sumOf {
                 if (it.totalBs > 0) it.totalBs else it.totalUsd * (if (it.tasaBcv > 0) it.tasaBcv else currentRate)
             }
+            val totalCosto = userSales.sumOf { it.costoTotalUsd }
+            val gananciaNeta = (totalUsd - totalCosto).coerceAtLeast(0.0)
+            val margen = if (totalUsd > 0) (gananciaNeta / totalUsd) * 100.0 else 0.0
+
             UsuarioGanancia(
                 usuario = user,
                 ventas = totalVentas,
                 unidades = totalUnidades,
                 totalUsd = totalUsd,
-                totalBs = totalBs
+                totalBs = totalBs,
+                totalCostoUsd = totalCosto,
+                gananciaNetaUsd = gananciaNeta,
+                margenPorcentaje = margen
             )
         }.sortedByDescending { it.totalUsd }
 
         val monthTotalUsd = userList.sumOf { it.totalUsd }
         val monthTotalBs = userList.sumOf { it.totalBs }
+        val monthTotalCosto = userList.sumOf { it.totalCostoUsd }
+        val monthGananciaNeta = (monthTotalUsd - monthTotalCosto).coerceAtLeast(0.0)
+        val monthMargen = if (monthTotalUsd > 0) (monthGananciaNeta / monthTotalUsd) * 100.0 else 0.0
         val monthFormattedKey = String.format(java.util.Locale.US, "Ventas_%04d-%02d", currentYear, currentMonth + 1)
 
         return GananciasMes(
@@ -2190,6 +2380,9 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
             usuarios = userList,
             totalUsd = monthTotalUsd,
             totalBs = monthTotalBs,
+            totalCostoUsd = monthTotalCosto,
+            gananciaNetaUsd = monthGananciaNeta,
+            margenPorcentaje = monthMargen,
             isArchived = false
         )
     }
@@ -2217,7 +2410,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         val clean = mesKey.removePrefix("Ventas_").removePrefix("ventas_").trim()
         val parts = clean.split("-")
         if (parts.size != 2) {
-            return GananciasMes(mes = mesKey, usuarios = emptyList(), totalUsd = 0.0, totalBs = 0.0, isArchived = true)
+            return GananciasMes(mes = mesKey, usuarios = emptyList(), totalUsd = 0.0, totalBs = 0.0, totalCostoUsd = 0.0, gananciaNetaUsd = 0.0, margenPorcentaje = 0.0, isArchived = true)
         }
         val targetYear = parts[0].toIntOrNull() ?: 0
         val targetMonth = (parts[1].toIntOrNull() ?: 1) - 1
@@ -2239,23 +2432,36 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
             val totalBs = userSales.sumOf {
                 if (it.totalBs > 0) it.totalBs else it.totalUsd * (if (it.tasaBcv > 0) it.tasaBcv else currentRate)
             }
+            val totalCosto = userSales.sumOf { it.costoTotalUsd }
+            val gananciaNeta = (totalUsd - totalCosto).coerceAtLeast(0.0)
+            val margen = if (totalUsd > 0) (gananciaNeta / totalUsd) * 100.0 else 0.0
+
             UsuarioGanancia(
                 usuario = user,
                 ventas = totalVentas,
                 unidades = totalUnidades,
                 totalUsd = totalUsd,
-                totalBs = totalBs
+                totalBs = totalBs,
+                totalCostoUsd = totalCosto,
+                gananciaNetaUsd = gananciaNeta,
+                margenPorcentaje = margen
             )
         }.sortedByDescending { it.totalUsd }
 
         val monthTotalUsd = userList.sumOf { it.totalUsd }
         val monthTotalBs = userList.sumOf { it.totalBs }
+        val monthTotalCosto = userList.sumOf { it.totalCostoUsd }
+        val monthGananciaNeta = (monthTotalUsd - monthTotalCosto).coerceAtLeast(0.0)
+        val monthMargen = if (monthTotalUsd > 0) (monthGananciaNeta / monthTotalUsd) * 100.0 else 0.0
 
         return GananciasMes(
             mes = mesKey,
             usuarios = userList,
             totalUsd = monthTotalUsd,
             totalBs = monthTotalBs,
+            totalCostoUsd = monthTotalCosto,
+            gananciaNetaUsd = monthGananciaNeta,
+            margenPorcentaje = monthMargen,
             isArchived = true
         )
     }

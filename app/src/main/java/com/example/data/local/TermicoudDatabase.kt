@@ -7,7 +7,7 @@ import androidx.room.RoomDatabase
 
 @Database(
     entities = [ProductEntity::class, SaleEntity::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class TermicoudDatabase : RoomDatabase() {

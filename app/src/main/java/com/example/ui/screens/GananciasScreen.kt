@@ -110,6 +110,11 @@ data class ProductSaleSummary(
     val tipo: String = "producto",
     val cantidadTotal: Int = 0,
     val totalUsd: Double = 0.0,
+    val totalCostoUsd: Double = 0.0,
+    val gananciaNetaUsd: Double = 0.0,
+    val costoUnitario: Double = 0.0,
+    val precioUnitarioPromedio: Double = 0.0,
+    val margenPorcentaje: Double = 0.0,
     val vendedores: List<String> = emptyList()
 )
 
@@ -119,6 +124,9 @@ data class SellerDetailedBreakdown(
     val unidades: Int,
     val totalUsd: Double,
     val totalBs: Double,
+    val totalCostoUsd: Double = 0.0,
+    val gananciaNetaUsd: Double = 0.0,
+    val margenPorcentaje: Double = 0.0,
     val productosVendidos: List<ProductSaleSummary>,
     val sales: List<Sale>
 )
@@ -185,35 +193,51 @@ fun GananciasScreen(
 
     // Aggregate products sold in this period ("Lo vendido")
     val aggregatedProductsSold = remember(activeMonthSales) {
-        val productMap = mutableMapOf<String, Pair<SaleItem, MutableList<String>>>()
+        val productMap = mutableMapOf<String, Triple<SaleItem, MutableList<String>, Double>>() // item, sellers, totalCost
         for (sale in activeMonthSales) {
             val seller = sale.usuario.ifBlank { sale.usuarioEmail }.ifBlank { "Operador" }
             for (item in sale.items) {
                 val key = item.producto.ifBlank { "Producto" }.trim()
                 val existing = productMap[key]
+                val itemCost = item.costoUnitario * item.cantidad
+                val itemSale = item.precioUsd * item.cantidad
                 if (existing != null) {
                     val updatedItem = existing.first.copy(
                         cantidad = existing.first.cantidad + item.cantidad,
-                        precioUsd = existing.first.precioUsd + (item.cantidad * item.precioUsd)
+                        precioUsd = existing.first.precioUsd + itemSale,
+                        precioCompra = if (existing.first.precioCompra > 0) existing.first.precioCompra else item.costoUnitario
                     )
                     existing.second.add(seller)
-                    productMap[key] = Pair(updatedItem, existing.second)
+                    productMap[key] = Triple(updatedItem, existing.second, existing.third + itemCost)
                 } else {
                     val initialItem = item.copy(
-                        precioUsd = item.cantidad * item.precioUsd
+                        precioUsd = itemSale
                     )
-                    productMap[key] = Pair(initialItem, mutableListOf(seller))
+                    productMap[key] = Triple(initialItem, mutableListOf(seller), itemCost)
                 }
             }
         }
 
-        productMap.map { (nombre, pair) ->
+        productMap.map { (nombre, triple) ->
+            val totalVenta = triple.first.precioUsd
+            val totalCosto = triple.third
+            val cant = triple.first.cantidad
+            val ganancia = (totalVenta - totalCosto).coerceAtLeast(0.0)
+            val margen = if (totalVenta > 0) (ganancia / totalVenta) * 100.0 else 0.0
+            val precioUnit = if (cant > 0) totalVenta / cant else 0.0
+            val costoUnit = if (cant > 0) totalCosto / cant else 0.0
+
             ProductSaleSummary(
                 productoNombre = nombre,
-                tipo = pair.first.tipo,
-                cantidadTotal = pair.first.cantidad,
-                totalUsd = pair.first.precioUsd,
-                vendedores = pair.second.distinct()
+                tipo = triple.first.tipo,
+                cantidadTotal = cant,
+                totalUsd = totalVenta,
+                totalCostoUsd = totalCosto,
+                gananciaNetaUsd = ganancia,
+                costoUnitario = costoUnit,
+                precioUnitarioPromedio = precioUnit,
+                margenPorcentaje = margen,
+                vendedores = triple.second.distinct()
             )
         }
     }
@@ -232,29 +256,48 @@ fun GananciasScreen(
             val totalBs = sales.sumOf {
                 if (it.totalBs > 0) it.totalBs else it.totalUsd * (if (it.tasaBcv > 0) it.tasaBcv else currentRate)
             }
+            val totalCostoUsd = sales.sumOf { it.costoTotalUsd }
+            val gananciaNetaUsd = (totalUsd - totalCostoUsd).coerceAtLeast(0.0)
+            val margenPorcentaje = if (totalUsd > 0) (gananciaNetaUsd / totalUsd) * 100.0 else 0.0
 
             // Products sold by this seller
-            val sellerProdMap = mutableMapOf<String, Pair<SaleItem, Int>>()
+            val sellerProdMap = mutableMapOf<String, Triple<SaleItem, Int, Double>>()
             for (sale in sales) {
                 for (item in sale.items) {
                     val key = item.producto.ifBlank { "Producto" }.trim()
                     val existing = sellerProdMap[key]
+                    val itemCost = item.costoUnitario * item.cantidad
+                    val itemSale = item.precioUsd * item.cantidad
                     if (existing != null) {
                         val newQty = existing.second + item.cantidad
-                        val newTotalUsd = existing.first.precioUsd + (item.cantidad * item.precioUsd)
-                        sellerProdMap[key] = Pair(existing.first.copy(precioUsd = newTotalUsd), newQty)
+                        val newTotalUsd = existing.first.precioUsd + itemSale
+                        val newTotalCost = existing.third + itemCost
+                        sellerProdMap[key] = Triple(existing.first.copy(precioUsd = newTotalUsd), newQty, newTotalCost)
                     } else {
-                        sellerProdMap[key] = Pair(item.copy(precioUsd = item.cantidad * item.precioUsd), item.cantidad)
+                        sellerProdMap[key] = Triple(item.copy(precioUsd = itemSale), item.cantidad, itemCost)
                     }
                 }
             }
 
-            val prodList = sellerProdMap.map { (nombre, pair) ->
+            val prodList = sellerProdMap.map { (nombre, triple) ->
+                val vTotal = triple.first.precioUsd
+                val cTotal = triple.third
+                val q = triple.second
+                val gNeta = (vTotal - cTotal).coerceAtLeast(0.0)
+                val mPct = if (vTotal > 0) (gNeta / vTotal) * 100.0 else 0.0
+                val pUnit = if (q > 0) vTotal / q else 0.0
+                val cUnit = if (q > 0) cTotal / q else 0.0
+
                 ProductSaleSummary(
                     productoNombre = nombre,
-                    tipo = pair.first.tipo,
-                    cantidadTotal = pair.second,
-                    totalUsd = pair.first.precioUsd,
+                    tipo = triple.first.tipo,
+                    cantidadTotal = q,
+                    totalUsd = vTotal,
+                    totalCostoUsd = cTotal,
+                    gananciaNetaUsd = gNeta,
+                    costoUnitario = cUnit,
+                    precioUnitarioPromedio = pUnit,
+                    margenPorcentaje = mPct,
                     vendedores = listOf(sellerName)
                 )
             }.sortedByDescending { it.totalUsd }
@@ -265,6 +308,9 @@ fun GananciasScreen(
                 unidades = totalUnidades,
                 totalUsd = totalUsd,
                 totalBs = totalBs,
+                totalCostoUsd = totalCostoUsd,
+                gananciaNetaUsd = gananciaNetaUsd,
+                margenPorcentaje = margenPorcentaje,
                 productosVendidos = prodList,
                 sales = sales.sortedByDescending { it.timestamp }
             )
@@ -282,6 +328,9 @@ fun GananciasScreen(
                     unidades = u.unidades,
                     totalUsd = u.totalUsd,
                     totalBs = u.totalBs,
+                    totalCostoUsd = u.totalCostoUsd,
+                    gananciaNetaUsd = u.gananciaNetaUsd,
+                    margenPorcentaje = u.margenPorcentaje,
                     productosVendidos = emptyList(),
                     sales = emptyList()
                 )
@@ -303,6 +352,25 @@ fun GananciasScreen(
             val remote = if (activeSubTab == 0) gananciasActuales else gananciasMesArchivado
             if ((remote?.totalBs ?: 0.0) > 0) remote?.totalBs ?: 0.0 else totalMonthUsd * exchangeRate
         }
+    }
+
+    val totalMonthCostoUsd = remember(sellersDetailedList, activeMonthSales, gananciasActuales, gananciasMesArchivado, activeSubTab) {
+        val sumFromSales = activeMonthSales.sumOf { it.costoTotalUsd }
+        if (sumFromSales > 0.0) sumFromSales else {
+            val sumFromDetailed = sellersDetailedList.sumOf { it.totalCostoUsd }
+            if (sumFromDetailed > 0.0) sumFromDetailed else {
+                val remote = if (activeSubTab == 0) gananciasActuales else gananciasMesArchivado
+                remote?.totalCostoUsd ?: 0.0
+            }
+        }
+    }
+
+    val totalMonthGananciaUsd = remember(totalMonthUsd, totalMonthCostoUsd) {
+        (totalMonthUsd - totalMonthCostoUsd).coerceAtLeast(0.0)
+    }
+
+    val totalMonthMargenPorcentaje = remember(totalMonthUsd, totalMonthGananciaUsd) {
+        if (totalMonthUsd > 0.0) (totalMonthGananciaUsd / totalMonthUsd) * 100.0 else 0.0
     }
 
     // Top Selling Products (Sorted by Units or Revenue)
@@ -338,6 +406,9 @@ fun GananciasScreen(
             periodo = activePeriodLabel,
             totalUsd = totalMonthUsd,
             totalBs = totalMonthBs,
+            totalCostoUsd = totalMonthCostoUsd,
+            gananciaNetaUsd = totalMonthGananciaUsd,
+            margenPorcentaje = totalMonthMargenPorcentaje,
             sellers = sellersDetailedList,
             productsSold = aggregatedProductsSold,
             sales = activeMonthSales,
@@ -535,6 +606,9 @@ fun GananciasScreen(
                 isArchived = false,
                 totalUsd = totalMonthUsd,
                 totalBs = totalMonthBs,
+                totalCostoUsd = totalMonthCostoUsd,
+                gananciaNetaUsd = totalMonthGananciaUsd,
+                margenPorcentaje = totalMonthMargenPorcentaje,
                 sellers = sellersDetailedList,
                 productsSold = sortedAndFilteredProducts,
                 topSellingProducts = topSellingProducts,
@@ -611,6 +685,9 @@ fun GananciasScreen(
                     isArchived = true,
                     totalUsd = totalMonthUsd,
                     totalBs = totalMonthBs,
+                    totalCostoUsd = totalMonthCostoUsd,
+                    gananciaNetaUsd = totalMonthGananciaUsd,
+                    margenPorcentaje = totalMonthMargenPorcentaje,
                     sellers = sellersDetailedList,
                     productsSold = sortedAndFilteredProducts,
                     topSellingProducts = topSellingProducts,
@@ -676,6 +753,9 @@ private fun LazyListScope.renderGananciasItems(
     isArchived: Boolean,
     totalUsd: Double,
     totalBs: Double,
+    totalCostoUsd: Double,
+    gananciaNetaUsd: Double,
+    margenPorcentaje: Double,
     sellers: List<SellerDetailedBreakdown>,
     productsSold: List<ProductSaleSummary>,
     topSellingProducts: List<ProductSaleSummary>,
@@ -743,7 +823,7 @@ private fun LazyListScope.renderGananciasItems(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = if (isArchived) "TOTAL RECAUDADO EN EL MES" else "TOTAL GENERADO EN EL MES",
+                        text = if (isArchived) "TOTAL FACTURADO EN EL MES" else "TOTAL VENTAS DEL MES",
                         style = MaterialTheme.typography.labelSmall,
                         color = ElectricLime,
                         letterSpacing = 1.sp,
@@ -788,7 +868,7 @@ private fun LazyListScope.renderGananciasItems(
 
                 Spacer(modifier = Modifier.height(14.dp))
 
-                // Mini Metrics Bar
+                // Mini Metrics Bar (Ventas, Unidades, Vendedores)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -843,7 +923,7 @@ private fun LazyListScope.renderGananciasItems(
 
                     Column(horizontalAlignment = Alignment.End) {
                         Text(
-                            text = "Vendedores",
+                            text = "Operadores",
                             style = MaterialTheme.typography.labelSmall,
                             color = TextMuted,
                             fontSize = 10.sp
@@ -855,54 +935,56 @@ private fun LazyListScope.renderGananciasItems(
                     }
                 }
 
-                // Cost and Profit Breakdown if costs are registered
-                val totalCostoUsd = sales.sumOf { it.costoTotalUsd }
-                if (totalCostoUsd > 0 && totalUsd > 0) {
-                    val gananciaNeta = (totalUsd - totalCostoUsd).coerceAtLeast(0.0)
-                    val margen = (gananciaNeta / totalUsd) * 100.0
-
-                    Spacer(modifier = Modifier.height(10.dp))
-                    Surface(
-                        modifier = Modifier.fillMaxWidth(),
-                        color = GraphiteSurfaceVariant.copy(alpha = 0.6f),
-                        shape = RoundedCornerShape(8.dp),
-                        border = androidx.compose.foundation.BorderStroke(0.8.dp, GraphiteBorder)
+                // Prominent Real Profit & Cost Breakdown Card
+                Spacer(modifier = Modifier.height(10.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = ElectricLime.copy(alpha = 0.08f),
+                    shape = RoundedCornerShape(10.dp),
+                    border = androidx.compose.foundation.BorderStroke(1.dp, ElectricLime.copy(alpha = 0.35f))
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(12.dp)
                     ) {
                         Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp, vertical = 8.dp),
+                            modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Column {
                                 Text(
-                                    text = "Ganancia Neta Estimada:",
+                                    text = "GANANCIA NETA REAL",
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = TextMuted,
+                                    color = ElectricLime,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.8.sp,
                                     fontSize = 11.sp
                                 )
                                 Text(
                                     text = String.format(Locale.US, "Costo base: $%,.2f", totalCostoUsd),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = TextSecondary,
-                                    fontSize = 10.sp
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextMuted,
+                                    fontSize = 11.sp
                                 )
                             }
+
                             Column(horizontalAlignment = Alignment.End) {
                                 Text(
-                                    text = String.format(Locale.US, "+$%,.2f", gananciaNeta),
-                                    style = MonoDataSmall.copy(
-                                        fontSize = 14.sp,
+                                    text = String.format(Locale.US, "+$%,.2f", gananciaNetaUsd),
+                                    style = MonoDataLarge.copy(
+                                        fontSize = 20.sp,
                                         color = ElectricLime,
                                         fontWeight = FontWeight.Bold
                                     )
                                 )
                                 Text(
-                                    text = String.format(Locale.US, "Margen: %.1f%%", margen),
+                                    text = String.format(Locale.US, "Margen: %.1f%%", margenPorcentaje),
                                     style = MaterialTheme.typography.labelSmall,
-                                    color = ElectricLime.copy(alpha = 0.8f),
-                                    fontSize = 10.sp
+                                    color = ElectricLime.copy(alpha = 0.9f),
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 11.sp
                                 )
                             }
                         }
@@ -1030,7 +1112,7 @@ private fun LazyListScope.renderGananciasItems(
                 )
 
                 Text(
-                    text = "Toca para ver detalle",
+                    text = "Toca para ver desglose y ganancia",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextMuted,
                     fontSize = 11.sp
@@ -1046,7 +1128,7 @@ private fun LazyListScope.renderGananciasItems(
                     message = if (isArchived) {
                         "No se registraron transacciones de venta durante el periodo $displayMonth."
                     } else {
-                        "Aún no hay ventas registradas en el mes en curso. Cuando los operadores completen ventas desde el catálogo, su recaudación y productos vendidos aparecerán clasificados aquí."
+                        "Aún no hay ventas registradas en el mes en curso. Cuando los operadores completen ventas desde el catálogo, su recaudación, costos y ganancias reales aparecerán clasificados aquí."
                     }
                 )
             }
@@ -1408,7 +1490,7 @@ fun SellerPerformanceDetailedCard(
                     }
                 }
 
-                // Total USD & Bs
+                // Total USD & Bs & Profit
                 Column(horizontalAlignment = Alignment.End) {
                     Text(
                         text = String.format(Locale.US, "$%,.2f", seller.totalUsd),
@@ -1418,7 +1500,16 @@ fun SellerPerformanceDetailedCard(
                             fontSize = 16.sp
                         )
                     )
-                    if (seller.totalBs > 0) {
+                    if (seller.gananciaNetaUsd > 0.0) {
+                        Text(
+                            text = String.format(Locale.US, "Ganancia: +$%,.2f", seller.gananciaNetaUsd),
+                            style = MaterialTheme.typography.labelSmall.copy(
+                                color = ElectricLime.copy(alpha = 0.9f),
+                                fontWeight = FontWeight.SemiBold,
+                                fontSize = 11.sp
+                            )
+                        )
+                    } else if (seller.totalBs > 0) {
                         Text(
                             text = String.format(Locale.US, "Bs %,.2f", seller.totalBs),
                             style = MaterialTheme.typography.bodySmall.copy(
@@ -1472,7 +1563,7 @@ fun SellerPerformanceDetailedCard(
                 )
             }
 
-            // EXPANDED SECTION: Products sold by this seller
+            // EXPANDED SECTION: Products sold and cost/profit breakdown
             AnimatedVisibility(
                 visible = isExpanded,
                 enter = expandVertically() + fadeIn(),
@@ -1483,6 +1574,62 @@ fun SellerPerformanceDetailedCard(
                         .fillMaxWidth()
                         .padding(top = 12.dp)
                 ) {
+                    // Operator metrics banner
+                    Surface(
+                        modifier = Modifier.fillMaxWidth(),
+                        color = GraphiteSurfaceVariant.copy(alpha = 0.5f),
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(0.8.dp, GraphiteBorder)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(10.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column {
+                                Text(
+                                    text = "COSTO DE MERCANCÍA:",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextMuted,
+                                    fontSize = 10.sp
+                                )
+                                Text(
+                                    text = String.format(Locale.US, "$%,.2f", seller.totalCostoUsd),
+                                    style = MonoDataSmall.copy(color = TextSecondary, fontSize = 13.sp)
+                                )
+                            }
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "GANANCIA NETA:",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = ElectricLime,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 10.sp
+                                )
+                                Text(
+                                    text = String.format(Locale.US, "+$%,.2f", seller.gananciaNetaUsd),
+                                    style = MonoDataSmall.copy(color = ElectricLime, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                )
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = "MARGEN:",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextMuted,
+                                    fontSize = 10.sp
+                                )
+                                Text(
+                                    text = String.format(Locale.US, "%.1f%%", seller.margenPorcentaje),
+                                    style = MonoDataSmall.copy(color = TextPrimary, fontSize = 13.sp)
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -1536,18 +1683,38 @@ fun SellerPerformanceDetailedCard(
                                         )
                                     }
                                     Spacer(modifier = Modifier.width(8.dp))
-                                    Text(
-                                        text = prod.productoNombre,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = TextPrimary,
-                                        fontWeight = FontWeight.Medium
-                                    )
+                                    Column {
+                                        Text(
+                                            text = prod.productoNombre,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = TextPrimary,
+                                            fontWeight = FontWeight.Medium
+                                        )
+                                        if (prod.gananciaNetaUsd > 0.0) {
+                                            Text(
+                                                text = String.format(Locale.US, "Ganancia: +$%,.2f (%.0f%%)", prod.gananciaNetaUsd, prod.margenPorcentaje),
+                                                style = MaterialTheme.typography.labelSmall,
+                                                color = ElectricLime.copy(alpha = 0.8f),
+                                                fontSize = 10.sp
+                                            )
+                                        }
+                                    }
                                 }
 
-                                Text(
-                                    text = String.format(Locale.US, "$%,.2f", prod.totalUsd),
-                                    style = MonoDataSmall.copy(color = ElectricLime, fontWeight = FontWeight.SemiBold)
-                                )
+                                Column(horizontalAlignment = Alignment.End) {
+                                    Text(
+                                        text = String.format(Locale.US, "$%,.2f", prod.totalUsd),
+                                        style = MonoDataSmall.copy(color = ElectricLime, fontWeight = FontWeight.SemiBold)
+                                    )
+                                    if (prod.totalCostoUsd > 0.0) {
+                                        Text(
+                                            text = String.format(Locale.US, "Costo: $%,.2f", prod.totalCostoUsd),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            color = TextMuted,
+                                            fontSize = 9.sp
+                                        )
+                                    }
+                                }
                             }
                         }
                     }
@@ -1677,6 +1844,38 @@ fun ProductSoldCard(
                     )
                 }
             }
+
+            // Real Cost and Profit Breakdown for this product
+            if (summary.totalCostoUsd > 0.0 || summary.gananciaNetaUsd > 0.0) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    color = GraphiteSurfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(6.dp)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 8.dp, vertical = 4.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = String.format(Locale.US, "Costo base: $%,.2f (Unit: $%,.2f)", summary.totalCostoUsd, summary.costoUnitario),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextMuted,
+                            fontSize = 10.sp
+                        )
+                        Text(
+                            text = String.format(Locale.US, "Ganancia: +$%,.2f (%.1f%%)", summary.gananciaNetaUsd, summary.margenPorcentaje),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = ElectricLime,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.sp
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -1687,6 +1886,9 @@ fun SaleTicketCompactCard(
 ) {
     val sdf = SimpleDateFormat("dd/MM/yyyy • hh:mm a", Locale.getDefault())
     val seller = sale.usuario.ifBlank { sale.usuarioEmail }.ifBlank { "Operador" }
+    val costoTotal = sale.costoTotalUsd
+    val gananciaNeta = (sale.totalUsd - costoTotal).coerceAtLeast(0.0)
+    val margen = if (sale.totalUsd > 0) (gananciaNeta / sale.totalUsd) * 100.0 else 0.0
 
     Card(
         modifier = Modifier
@@ -1728,10 +1930,20 @@ fun SaleTicketCompactCard(
                     )
                 }
 
-                Text(
-                    text = String.format(Locale.US, "$%,.2f", sale.totalUsd),
-                    style = MonoDataMedium.copy(color = ElectricLime, fontWeight = FontWeight.Bold, fontSize = 15.sp)
-                )
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = String.format(Locale.US, "$%,.2f", sale.totalUsd),
+                        style = MonoDataMedium.copy(color = ElectricLime, fontWeight = FontWeight.Bold, fontSize = 15.sp)
+                    )
+                    if (gananciaNeta > 0.0) {
+                        Text(
+                            text = String.format(Locale.US, "+$%,.2f (%.0f%%)", gananciaNeta, margen),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = ElectricLime.copy(alpha = 0.9f),
+                            fontSize = 10.sp
+                        )
+                    }
+                }
             }
 
             Spacer(modifier = Modifier.height(6.dp))
@@ -1900,6 +2112,9 @@ fun ExportGananciasDialog(
     periodo: String,
     totalUsd: Double,
     totalBs: Double,
+    totalCostoUsd: Double = 0.0,
+    gananciaNetaUsd: Double = 0.0,
+    margenPorcentaje: Double = 0.0,
     sellers: List<SellerDetailedBreakdown>,
     productsSold: List<ProductSaleSummary>,
     sales: List<Sale>,
@@ -1908,14 +2123,29 @@ fun ExportGananciasDialog(
     onShare: (String) -> Unit,
     onCopyToClipboard: (String) -> Unit
 ) {
-    val reportText = remember(periodo, totalUsd, totalBs, sellers, productsSold, sales) {
+    val computedCostoUsd = remember(sales, sellers, totalCostoUsd) {
+        if (totalCostoUsd > 0.0) totalCostoUsd
+        else if (sales.isNotEmpty()) sales.sumOf { it.costoTotalUsd }
+        else sellers.sumOf { it.totalCostoUsd }
+    }
+    val computedGananciaNetaUsd = remember(totalUsd, computedCostoUsd, gananciaNetaUsd) {
+        if (gananciaNetaUsd > 0.0) gananciaNetaUsd else (totalUsd - computedCostoUsd).coerceAtLeast(0.0)
+    }
+    val computedMargenPorcentaje = remember(totalUsd, computedGananciaNetaUsd, margenPorcentaje) {
+        if (margenPorcentaje > 0.0) margenPorcentaje
+        else if (totalUsd > 0.0) (computedGananciaNetaUsd / totalUsd) * 100.0 else 0.0
+    }
+
+    val reportText = remember(periodo, totalUsd, totalBs, computedCostoUsd, computedGananciaNetaUsd, computedMargenPorcentaje, sellers, productsSold, sales) {
         buildString {
             appendLine("═════════════════════════════════════")
             appendLine(" 📊 REPORTE DE VENTAS Y GANANCIAS")
             appendLine(" Periodo: $periodo")
             appendLine("═════════════════════════════════════")
-            appendLine("💰 Total Generado USD: $${String.format(Locale.US, "%,.2f", totalUsd)}")
-            appendLine("🇻🇪 Total Estimado Bs: Bs ${String.format(Locale.US, "%,.2f", totalBs)}")
+            appendLine("💰 Total Facturado (USD): $${String.format(Locale.US, "%,.2f", totalUsd)}")
+            appendLine("🇻🇪 Total Estimado (Bs):  Bs ${String.format(Locale.US, "%,.2f", totalBs)}")
+            appendLine("📦 Costo Base Total:     $${String.format(Locale.US, "%,.2f", computedCostoUsd)}")
+            appendLine("✨ GANANCIA NETA REAL:   +$${String.format(Locale.US, "%,.2f", computedGananciaNetaUsd)} (${String.format(Locale.US, "%.1f", computedMargenPorcentaje)}%)")
             appendLine("🧾 Transacciones registradas: ${sales.size}")
             val totalUnits = if (productsSold.isNotEmpty()) productsSold.sumOf { it.cantidadTotal } else sellers.sumOf { it.unidades }
             appendLine("📦 Total artículos despachados: $totalUnits")
@@ -1929,7 +2159,9 @@ fun ExportGananciasDialog(
                 sellers.forEachIndexed { i, s ->
                     appendLine("${i + 1}. ${s.usuario.ifBlank { "Operador" }}")
                     appendLine("   • Ventas: ${s.ventas} | Unidades: ${s.unidades}")
-                    appendLine("   • Recaudado: $${String.format(Locale.US, "%,.2f", s.totalUsd)} (Bs ${String.format(Locale.US, "%,.2f", s.totalBs)})")
+                    appendLine("   • Total Venta: $${String.format(Locale.US, "%,.2f", s.totalUsd)} (Bs ${String.format(Locale.US, "%,.2f", s.totalBs)})")
+                    appendLine("   • Costo Base:  $${String.format(Locale.US, "%,.2f", s.totalCostoUsd)}")
+                    appendLine("   • Ganancia:    +$${String.format(Locale.US, "%,.2f", s.gananciaNetaUsd)} (${String.format(Locale.US, "%.1f", s.margenPorcentaje)}%)")
                     if (s.productosVendidos.isNotEmpty()) {
                         val topItems = s.productosVendidos.take(3).joinToString(", ") { "${it.cantidadTotal}x ${it.productoNombre}" }
                         appendLine("   • Artículos principales: $topItems")
@@ -1947,7 +2179,9 @@ fun ExportGananciasDialog(
                 topList.forEachIndexed { i, p ->
                     appendLine("${i + 1}. ${p.productoNombre}")
                     appendLine("   • Cantidad vendida: ${p.cantidadTotal} unid.")
-                    appendLine("   • Total generado: $${String.format(Locale.US, "%,.2f", p.totalUsd)}")
+                    appendLine("   • Venta Total: $${String.format(Locale.US, "%,.2f", p.totalUsd)}")
+                    appendLine("   • Costo Base:  $${String.format(Locale.US, "%,.2f", p.totalCostoUsd)}")
+                    appendLine("   • Ganancia:    +$${String.format(Locale.US, "%,.2f", p.gananciaNetaUsd)} (${String.format(Locale.US, "%.1f", p.margenPorcentaje)}%)")
                     if (p.vendedores.isNotEmpty()) {
                         appendLine("   • Vendido por: ${p.vendedores.joinToString(", ")}")
                     }
@@ -1988,7 +2222,7 @@ fun ExportGananciasDialog(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
-                    text = "El reporte incluye el total mensual, el rendimiento individual de tus operadores y el ranking de lo que más se vende en tu inventario.",
+                    text = "El reporte incluye totales facturados, costos base, ganancias netas reales, rendimiento por operador y ranking de productos.",
                     style = MaterialTheme.typography.bodySmall,
                     color = TextSecondary
                 )

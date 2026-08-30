@@ -24,7 +24,13 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -42,6 +48,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -70,9 +77,13 @@ fun UserManagementScreen(
     users: List<AppUser>,
     onApproveUser: (String) -> Unit,
     onRejectUser: (String) -> Unit,
+    onPreApproveOperator: ((String, String) -> Unit)? = null,
     onBackClick: () -> Unit
 ) {
     var selectedTab by remember { mutableIntStateOf(0) } // 0: Pendientes, 1: Aprobados, 2: Rechazados
+    var showAddOperatorDialog by remember { mutableStateOf(false) }
+    var newOperatorEmail by remember { mutableStateOf("") }
+    var newOperatorName by remember { mutableStateOf("") }
 
     val pendingUsers = users.filter { it.estado.equals("pendiente", ignoreCase = true) }
     val approvedUsers = users.filter { it.estado.equals("aprobado", ignoreCase = true) }
@@ -80,162 +91,276 @@ fun UserManagementScreen(
 
     val dateFormat = SimpleDateFormat("dd/MM/yyyy • hh:mm a", Locale.getDefault())
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(GraphiteBackground)
-    ) {
-        // Top Bar
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .background(GraphiteSurface)
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            IconButton(
-                onClick = onBackClick,
-                modifier = Modifier.testTag("btn_back_user_mgmt")
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "Regresar",
-                    tint = TextPrimary
-                )
-            }
-
-            Spacer(modifier = Modifier.width(8.dp))
-
-            Column {
+    if (showAddOperatorDialog) {
+        AlertDialog(
+            onDismissRequest = { showAddOperatorDialog = false },
+            title = {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Lock,
-                        contentDescription = null,
-                        tint = ElectricLime,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
+                    Icon(Icons.Default.Person, contentDescription = null, tint = ElectricLime)
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "ADMINISTRACIÓN DE USUARIOS",
+                        text = "Autorizar Nuevo Operador",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
                     )
                 }
-                Text(
-                    text = "Control de accesos a Firestore y permisos de operadores",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = TextMuted
-                )
-            }
-        }
-
-        // Tabs
-        TabRow(
-            selectedTabIndex = selectedTab,
-            containerColor = GraphiteSurface,
-            contentColor = ElectricLime,
-            indicator = { tabPositions ->
-                TabRowDefaults.SecondaryIndicator(
-                    Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
-                    color = ElectricLime
-                )
             },
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Tab(
-                selected = selectedTab == 0,
-                onClick = { selectedTab = 0 },
-                text = {
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     Text(
-                        text = "Pendientes (${pendingUsers.size})",
-                        fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
-                        color = if (selectedTab == 0) ElectricLime else TextSecondary
-                    )
-                },
-                modifier = Modifier.testTag("tab_pending_users")
-            )
-            Tab(
-                selected = selectedTab == 1,
-                onClick = { selectedTab = 1 },
-                text = {
-                    Text(
-                        text = "Aprobados (${approvedUsers.size})",
-                        fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
-                        color = if (selectedTab == 1) ElectricLime else TextSecondary
-                    )
-                },
-                modifier = Modifier.testTag("tab_approved_users")
-            )
-            Tab(
-                selected = selectedTab == 2,
-                onClick = { selectedTab = 2 },
-                text = {
-                    Text(
-                        text = "Rechazados (${rejectedUsers.size})",
-                        fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal,
-                        color = if (selectedTab == 2) ElectricLime else TextSecondary
-                    )
-                },
-                modifier = Modifier.testTag("tab_rejected_users")
-            )
-        }
-
-        val currentList = when (selectedTab) {
-            0 -> pendingUsers
-            1 -> approvedUsers
-            else -> rejectedUsers
-        }
-
-        if (currentList.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(32.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = null,
-                        tint = TextMuted,
-                        modifier = Modifier.size(48.dp)
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Text(
-                        text = when (selectedTab) {
-                            0 -> "No hay solicitudes pendientes"
-                            1 -> "No hay usuarios aprobados"
-                            else -> "No hay usuarios rechazados"
-                        },
-                        style = MaterialTheme.typography.titleMedium,
+                        text = "Escribe el correo del operador para darle acceso y dejarlo aprobado de antemano.",
+                        style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary
                     )
-                    Spacer(modifier = Modifier.height(4.dp))
+                    OutlinedTextField(
+                        value = newOperatorEmail,
+                        onValueChange = { newOperatorEmail = it },
+                        label = { Text("Correo del Operador", color = TextSecondary) },
+                        placeholder = { Text("ejemplo@gmail.com", color = TextMuted) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("input_new_operator_email"),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = ElectricLime,
+                            unfocusedBorderColor = GraphiteBorder,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        )
+                    )
+                    OutlinedTextField(
+                        value = newOperatorName,
+                        onValueChange = { newOperatorName = it },
+                        label = { Text("Nombre del Operador (Opcional)", color = TextSecondary) },
+                        placeholder = { Text("Juan Pérez", color = TextMuted) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth().testTag("input_new_operator_name"),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = ElectricLime,
+                            unfocusedBorderColor = GraphiteBorder,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        )
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newOperatorEmail.isNotBlank()) {
+                            onPreApproveOperator?.invoke(newOperatorEmail.trim(), newOperatorName.trim())
+                            showAddOperatorDialog = false
+                            newOperatorEmail = ""
+                            newOperatorName = ""
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = ElectricLime),
+                    shape = RoundedCornerShape(8.dp),
+                    enabled = newOperatorEmail.isNotBlank(),
+                    modifier = Modifier.testTag("btn_confirm_preapprove_operator")
+                ) {
+                    Text("Autorizar Acceso", color = Color.Black, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showAddOperatorDialog = false }) {
+                    Text("Cancelar", color = TextSecondary)
+                }
+            },
+            containerColor = GraphiteSurface,
+            shape = RoundedCornerShape(12.dp)
+        )
+    }
+
+    Box(modifier = Modifier.fillMaxSize().background(GraphiteBackground)) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+        ) {
+            // Top Bar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(GraphiteSurface)
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = onBackClick,
+                    modifier = Modifier.testTag("btn_back_user_mgmt")
+                ) {
+                    Icon(
+                        imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "Regresar",
+                        tint = TextPrimary
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(8.dp))
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = ElectricLime,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "GESTIÓN DE USUARIOS",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                    }
                     Text(
-                        text = when (selectedTab) {
-                            0 -> "Cuando nuevos operadores inicien sesión con Google, aparecerán aquí para tu aprobación"
-                            1 -> "Los usuarios aprobados tienen acceso total al inventario y ventas"
-                            else -> "Los usuarios bloqueados no pueden sincronizar datos"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
+                        text = "Aprobación y permisos de operadores",
+                        style = MaterialTheme.typography.labelSmall,
                         color = TextMuted
                     )
                 }
+
+                if (onPreApproveOperator != null) {
+                    IconButton(
+                        onClick = { showAddOperatorDialog = true },
+                        modifier = Modifier
+                            .size(38.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(ElectricLime.copy(alpha = 0.15f))
+                            .border(1.dp, ElectricLime, RoundedCornerShape(8.dp))
+                            .testTag("btn_open_preapprove_dialog")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Add,
+                            contentDescription = "Autorizar Operador",
+                            tint = ElectricLime,
+                            modifier = Modifier.size(22.dp)
+                        )
+                    }
+                }
             }
-        } else {
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                items(currentList, key = { it.email }) { user ->
-                    UserApprovalCard(
-                        user = user,
-                        dateFormat = dateFormat,
-                        onApprove = { onApproveUser(user.email) },
-                        onReject = { onRejectUser(user.email) }
+
+            // Tabs
+            TabRow(
+                selectedTabIndex = selectedTab,
+                containerColor = GraphiteSurface,
+                contentColor = ElectricLime,
+                indicator = { tabPositions ->
+                    TabRowDefaults.SecondaryIndicator(
+                        Modifier.tabIndicatorOffset(tabPositions[selectedTab]),
+                        color = ElectricLime
                     )
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Tab(
+                    selected = selectedTab == 0,
+                    onClick = { selectedTab = 0 },
+                    text = {
+                        Text(
+                            text = "Pendientes (${pendingUsers.size})",
+                            fontWeight = if (selectedTab == 0) FontWeight.Bold else FontWeight.Normal,
+                            color = if (selectedTab == 0) ElectricLime else TextSecondary
+                        )
+                    },
+                    modifier = Modifier.testTag("tab_pending_users")
+                )
+                Tab(
+                    selected = selectedTab == 1,
+                    onClick = { selectedTab = 1 },
+                    text = {
+                        Text(
+                            text = "Aprobados (${approvedUsers.size})",
+                            fontWeight = if (selectedTab == 1) FontWeight.Bold else FontWeight.Normal,
+                            color = if (selectedTab == 1) ElectricLime else TextSecondary
+                        )
+                    },
+                    modifier = Modifier.testTag("tab_approved_users")
+                )
+                Tab(
+                    selected = selectedTab == 2,
+                    onClick = { selectedTab = 2 },
+                    text = {
+                        Text(
+                            text = "Rechazados (${rejectedUsers.size})",
+                            fontWeight = if (selectedTab == 2) FontWeight.Bold else FontWeight.Normal,
+                            color = if (selectedTab == 2) ElectricLime else TextSecondary
+                        )
+                    },
+                    modifier = Modifier.testTag("tab_rejected_users")
+                )
+            }
+
+            val currentList = when (selectedTab) {
+                0 -> pendingUsers
+                1 -> approvedUsers
+                else -> rejectedUsers
+            }
+
+            if (currentList.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(32.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = null,
+                            tint = TextMuted,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = when (selectedTab) {
+                                0 -> "No hay solicitudes pendientes"
+                                1 -> "No hay usuarios aprobados"
+                                else -> "No hay usuarios rechazados"
+                            },
+                            style = MaterialTheme.typography.titleMedium,
+                            color = TextSecondary
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = when (selectedTab) {
+                                0 -> "Cuando un operador ingrese al sistema aparecerá aquí. También puedes autorizarlo de antemano con el botón (+) arriba."
+                                1 -> "Los usuarios aprobados tienen acceso al inventario y ventas"
+                                else -> "Los usuarios bloqueados no pueden sincronizar datos"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextMuted,
+                            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                        )
+                        if (selectedTab == 0 && onPreApproveOperator != null) {
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Button(
+                                onClick = { showAddOperatorDialog = true },
+                                colors = ButtonDefaults.buttonColors(containerColor = ElectricLime),
+                                shape = RoundedCornerShape(8.dp),
+                                modifier = Modifier.testTag("btn_empty_preapprove_operator")
+                            ) {
+                                Icon(Icons.Default.Add, contentDescription = null, tint = Color.Black)
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text("Autorizar Operador por Correo", color = Color.Black, fontWeight = FontWeight.Bold)
+                            }
+                        }
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    items(currentList, key = { it.email }) { user ->
+                        UserApprovalCard(
+                            user = user,
+                            dateFormat = dateFormat,
+                            onApprove = { onApproveUser(user.email) },
+                            onReject = { onRejectUser(user.email) }
+                        )
+                    }
                 }
             }
         }

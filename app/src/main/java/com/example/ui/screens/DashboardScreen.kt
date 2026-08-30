@@ -33,6 +33,7 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -69,6 +70,8 @@ import com.example.config.AppConfig
 import com.example.data.model.Product
 import com.example.data.model.Sale
 import com.example.data.model.StockFilter
+import com.example.ui.components.SaleCardSkeleton
+import com.example.ui.components.TermiCoudDialog
 import com.example.ui.theme.AlertRed
 import com.example.ui.theme.ElectricLime
 import com.example.ui.theme.GraphiteBorder
@@ -115,7 +118,14 @@ fun DashboardScreen(
     val lowStockCount = products.count { it.cantidad in 1..it.minStock }
     var showUserSessionDialog by remember { mutableStateOf(false) }
     var showEditProfileDialog by remember { mutableStateOf(false) }
+    var showTermiCoudDialog by remember { mutableStateOf(false) }
     var showMoreMenu by remember { mutableStateOf(false) }
+
+    if (showTermiCoudDialog) {
+        com.example.ui.components.TermiCoudDialog(
+            onDismissRequest = { showTermiCoudDialog = false }
+        )
+    }
 
     var editName by remember(activeUser) { mutableStateOf(activeUser) }
     var editEmail by remember(currentUserEmail) { mutableStateOf(currentUserEmail) }
@@ -464,6 +474,23 @@ fun DashboardScreen(
                             }
 
                             DropdownMenuItem(
+                                text = { Text("Términos (TermiCoud)", color = TextPrimary) },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Default.Description,
+                                        contentDescription = null,
+                                        tint = ElectricLime,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                                onClick = {
+                                    showMoreMenu = false
+                                    showTermiCoudDialog = true
+                                },
+                                modifier = Modifier.testTag("menu_item_termicoud")
+                            )
+
+                            DropdownMenuItem(
                                 text = { Text("Cerrar Sesión", color = MaterialTheme.colorScheme.error) },
                                 leadingIcon = {
                                     Icon(
@@ -697,27 +724,43 @@ fun DashboardScreen(
                     )
                 }
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    QuickActionCard(
-                        title = "Ganancias",
-                        subtitle = "Ventas por vendedor",
-                        icon = Icons.Default.TrendingUp,
-                        modifier = Modifier.weight(1f),
-                        testTag = "quick_action_ganancias",
-                        onClick = { onNavigateToTab(5) }
-                    )
+                if (isAdmin) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        QuickActionCard(
+                            title = "Ganancias",
+                            subtitle = "Ventas por vendedor",
+                            icon = Icons.Default.TrendingUp,
+                            modifier = Modifier.weight(1f),
+                            testTag = "quick_action_ganancias",
+                            onClick = { onNavigateToTab(5) }
+                        )
 
-                    QuickActionCard(
-                        title = "Tasa del Día",
-                        subtitle = String.format(Locale.US, "Bs %.2f", exchangeRate),
-                        icon = Icons.Default.Savings,
-                        modifier = Modifier.weight(1f),
-                        testTag = "quick_action_tasa",
-                        onClick = { onNavigateToTab(6) }
-                    )
+                        QuickActionCard(
+                            title = "Tasa del Día",
+                            subtitle = String.format(Locale.US, "Bs %.2f", exchangeRate),
+                            icon = Icons.Default.Savings,
+                            modifier = Modifier.weight(1f),
+                            testTag = "quick_action_tasa",
+                            onClick = { onNavigateToTab(6) }
+                        )
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        QuickActionCard(
+                            title = "Tasa del Día",
+                            subtitle = String.format(Locale.US, "Bs %.2f", exchangeRate),
+                            icon = Icons.Default.Savings,
+                            modifier = Modifier.weight(1f),
+                            testTag = "quick_action_tasa",
+                            onClick = { onNavigateToTab(6) }
+                        )
+                    }
                 }
 
                 if (onOpenQuickScan != null) {
@@ -772,7 +815,12 @@ fun DashboardScreen(
             }
         }
 
-        if (salesHistory.isEmpty()) {
+        if (isSyncing && salesHistory.isEmpty()) {
+            items(3) {
+                SaleCardSkeleton()
+                Spacer(modifier = Modifier.height(8.dp))
+            }
+        } else if (salesHistory.isEmpty()) {
             item {
                 Box(
                     modifier = Modifier

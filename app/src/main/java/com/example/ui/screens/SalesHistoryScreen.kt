@@ -58,6 +58,8 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.Movimiento
 import com.example.data.model.Sale
 import com.example.data.model.TipoMovimiento
+import com.example.ui.components.MovementsListSkeleton
+import com.example.ui.components.SalesHistorySkeleton
 import com.example.ui.theme.AlertRed
 import com.example.ui.theme.ElectricLime
 import com.example.ui.theme.GraphiteBorder
@@ -76,6 +78,7 @@ import java.util.Locale
 fun SalesHistoryScreen(
     sales: List<Sale>,
     movimientos: List<Movimiento> = emptyList(),
+    isLoading: Boolean = false,
     onBackClick: () -> Unit,
     onRevertSale: ((String) -> Unit)? = null,
     onRevertMovimiento: ((String) -> Unit)? = null
@@ -158,7 +161,9 @@ fun SalesHistoryScreen(
 
         if (selectedTab == 0) {
             // TAB 0: VENTAS
-            if (sales.isEmpty()) {
+            if (isLoading && sales.isEmpty()) {
+                SalesHistorySkeleton(count = 5)
+            } else if (sales.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()
@@ -333,7 +338,9 @@ fun SalesHistoryScreen(
             }
         } else {
             // TAB 1: MOVIMIENTOS DE INVENTARIO
-            if (movimientos.isEmpty()) {
+            if (isLoading && movimientos.isEmpty()) {
+                MovementsListSkeleton(count = 6)
+            } else if (movimientos.isEmpty()) {
                 Box(
                     modifier = Modifier
                         .fillMaxSize()

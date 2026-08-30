@@ -207,6 +207,7 @@ fun TermicoudApp(viewModel: InventoryViewModel = viewModel()) {
                         if (!showingFullHistoryScreen && !showingUserMgmtScreen && !showingQuickScanScreen) {
                             BottomNavBar(
                                 selectedTab = selectedTab,
+                                isAdmin = isCurrentUserAdmin,
                                 onTabSelected = { tab ->
                                     viewModel.selectTab(tab)
                                 }
@@ -219,17 +220,19 @@ fun TermicoudApp(viewModel: InventoryViewModel = viewModel()) {
                             .fillMaxSize()
                             .padding(innerPadding)
                     ) {
-                        if (showingUserMgmtScreen) {
+                        if (showingUserMgmtScreen && isCurrentUserAdmin) {
                             com.example.ui.screens.UserManagementScreen(
                                 users = allUsers,
                                 onApproveUser = { targetEmail -> viewModel.approveUser(targetEmail) },
                                 onRejectUser = { targetEmail -> viewModel.rejectUser(targetEmail) },
+                                onPreApproveOperator = { email, name -> viewModel.preApproveOperator(email, name) },
                                 onBackClick = { showingUserMgmtScreen = false }
                             )
                         } else if (showingFullHistoryScreen) {
                             SalesHistoryScreen(
                                 sales = salesHistory,
                                 movimientos = movimientos,
+                                isLoading = isSyncing,
                                 onBackClick = { showingFullHistoryScreen = false },
                                 onRevertSale = { ventaId ->
                                     viewModel.reversarVenta(ventaId)
@@ -271,7 +274,7 @@ fun TermicoudApp(viewModel: InventoryViewModel = viewModel()) {
                                         viewModel.updateUserProfile(newName, newEmail)
                                     },
                                     onSignOut = { viewModel.signOut() },
-                                    onOpenUserManagement = { showingUserMgmtScreen = true },
+                                    onOpenUserManagement = if (isCurrentUserAdmin) { { showingUserMgmtScreen = true } } else null,
                                     onOpenQuickScan = { showingQuickScanScreen = true },
                                     onSyncClick = { viewModel.syncFromRemote() },
                                     onViewFullHistory = { showingFullHistoryScreen = true }
@@ -345,21 +348,29 @@ fun TermicoudApp(viewModel: InventoryViewModel = viewModel()) {
                                     }
                                 )
 
-                                5 -> GananciasScreen(
-                                    gananciasActuales = gananciasActuales,
-                                    historialMeses = historialMeses,
-                                    gananciasMesArchivado = gananciasMesArchivado,
-                                    selectedArchivedMonth = selectedArchivedMonth,
-                                    salesHistory = salesHistory,
-                                    exchangeRate = exchangeRate,
-                                    isLoading = isLoadingGanancias,
-                                    onRefresh = {
-                                        viewModel.fetchGanancias()
-                                        viewModel.fetchHistorialMeses()
-                                    },
-                                    onSelectArchivedMonth = { mesKey -> viewModel.selectArchivedMonth(mesKey) },
-                                    onClearSelectedArchivedMonth = { viewModel.clearSelectedArchivedMonth() }
-                                )
+                                5 -> {
+                                    if (isCurrentUserAdmin) {
+                                        GananciasScreen(
+                                            gananciasActuales = gananciasActuales,
+                                            historialMeses = historialMeses,
+                                            gananciasMesArchivado = gananciasMesArchivado,
+                                            selectedArchivedMonth = selectedArchivedMonth,
+                                            salesHistory = salesHistory,
+                                            exchangeRate = exchangeRate,
+                                            isLoading = isLoadingGanancias,
+                                            onRefresh = {
+                                                viewModel.fetchGanancias()
+                                                viewModel.fetchHistorialMeses()
+                                            },
+                                            onSelectArchivedMonth = { mesKey -> viewModel.selectArchivedMonth(mesKey) },
+                                            onClearSelectedArchivedMonth = { viewModel.clearSelectedArchivedMonth() }
+                                        )
+                                    } else {
+                                        androidx.compose.runtime.LaunchedEffect(Unit) {
+                                            viewModel.selectTab(0)
+                                        }
+                                    }
+                                }
 
                                 6 -> ExchangeRateScreen(
                                     exchangeRate = exchangeRate,

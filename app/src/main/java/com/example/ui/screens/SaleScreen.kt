@@ -950,14 +950,20 @@ fun SaleScreen(
                 ) {
                     items(
                         items = cart,
-                        key = { it.product.id.ifBlank { "cart_${it.product.fila}_${it.product.producto}" } }
+                        key = { item ->
+                            if (item.isCombo && item.combo != null) {
+                                item.combo.id.ifBlank { "cart_combo_${item.combo.fila}_${item.combo.nombre}" }
+                            } else {
+                                item.product.id.ifBlank { "cart_prod_${item.product.fila}_${item.product.producto}" }
+                            }
+                        }
                     ) { item ->
                         CartItemRow(
                             item = item,
                             exchangeRate = exchangeRate,
-                            onQtyChange = { newQty -> onUpdateCartQuantity(item.product.fila, newQty) },
-                            onPriceModeChange = { newMode -> onUpdateCartPriceMode?.invoke(item.product.fila, newMode) },
-                            onRemove = { onRemoveFromCart(item.product.fila) }
+                            onQtyChange = { newQty -> onUpdateCartQuantity(item.itemFila, newQty) },
+                            onPriceModeChange = { newMode -> onUpdateCartPriceMode?.invoke(item.itemFila, newMode) },
+                            onRemove = { onRemoveFromCart(item.itemFila) }
                         )
                     }
                 }
