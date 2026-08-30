@@ -40,22 +40,21 @@ import com.example.ui.theme.GraphiteBorder
 import com.example.ui.theme.GraphiteSurface
 import com.example.ui.theme.TextSecondary
 
-data class NavItemData(
-    val tabIndex: Int,
+data class NavItem(
     val title: String,
     val icon: ImageVector,
     val testTag: String,
     val adminOnly: Boolean = false
 )
 
-val allNavItems = listOf(
-    NavItemData(0, "Inicio", Icons.Default.Home, "nav_inicio"),
-    NavItemData(1, "Inventario", Icons.Default.Inventory2, "nav_inventario"),
-    NavItemData(2, "Salida", Icons.Default.PointOfSale, "nav_salida"),
-    NavItemData(3, "Entrada", Icons.Default.AddBox, "nav_entrada"),
-    NavItemData(4, "Combos", Icons.Default.Layers, "nav_combos"),
-    NavItemData(5, "Ganancias", Icons.Default.TrendingUp, "nav_ganancias", adminOnly = true),
-    NavItemData(6, "Tasa", Icons.Default.Savings, "nav_tasa")
+val rawNavItems = listOf(
+    NavItem("Inicio", Icons.Default.Home, "nav_inicio"),
+    NavItem("Inventario", Icons.Default.Inventory2, "nav_inventario"),
+    NavItem("Salida", Icons.Default.PointOfSale, "nav_salida"),
+    NavItem("Entrada", Icons.Default.AddBox, "nav_entrada"),
+    NavItem("Combos", Icons.Default.Layers, "nav_combos"),
+    NavItem("Ganancias", Icons.Default.TrendingUp, "nav_ganancias", adminOnly = true),
+    NavItem("Tasa", Icons.Default.Savings, "nav_tasa")
 )
 
 @Composable
@@ -64,8 +63,12 @@ fun BottomNavBar(
     isAdmin: Boolean = false,
     onTabSelected: (Int) -> Unit
 ) {
-    val items = remember(isAdmin) {
-        if (isAdmin) allNavItems else allNavItems.filter { !it.adminOnly }
+    // Preserve original index by calling withIndex() before filtering
+    val visibleItems = remember(isAdmin) {
+        rawNavItems.withIndex()
+            .filter { (_, item) ->
+                if (item.adminOnly) isAdmin else true
+            }
     }
 
     Box(
@@ -82,15 +85,15 @@ fun BottomNavBar(
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            items.forEach { item ->
-                val isSelected = selectedTab == item.tabIndex
+            visibleItems.forEach { (originalIndex, item) ->
+                val isSelected = selectedTab == originalIndex
                 val tint = if (isSelected) ElectricLime else TextSecondary
 
                 Column(
                     modifier = Modifier
                         .weight(1f)
                         .clip(RoundedCornerShape(8.dp))
-                        .clickable { onTabSelected(item.tabIndex) }
+                        .clickable { onTabSelected(originalIndex) }
                         .padding(vertical = 4.dp, horizontal = 1.dp)
                         .testTag(item.testTag),
                     horizontalAlignment = Alignment.CenterHorizontally,

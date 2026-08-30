@@ -166,7 +166,7 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         _stockFilter
     ) { allProducts, query, category, filter ->
         allProducts.filter { product ->
-            val matchesCategory = (category == "Todos" || product.catalogo.equals(category, ignoreCase = true))
+            val matchesCategory = (category == "Todos" || product.catalogo.trim().equals(category.trim(), ignoreCase = true))
             val matchesQuery = query.isBlank() ||
                     product.producto.contains(query, ignoreCase = true) ||
                     product.catalogo.contains(query, ignoreCase = true) ||
@@ -183,13 +183,22 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    // Unique Categories List
+    // Unique Categories List (grouped case-insensitively with trim + lowercase, picking first representative name)
     val categories: StateFlow<List<String>> = products.combine(MutableStateFlow(Unit)) { allProducts, _ ->
         val list = mutableListOf("Todos")
-        val unique = allProducts.map { it.catalogo }.filter { it.isNotBlank() }.distinct().sorted()
-        list.addAll(unique)
+        val uniqueGroups = allProducts
+            .map { it.catalogo.trim() }
+            .filter { it.isNotBlank() }
+            .groupBy { it.lowercase() }
+            .map { entry -> entry.value.first() }
+            .sortedWith(String.CASE_INSENSITIVE_ORDER)
+        list.addAll(uniqueGroups)
         list
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), listOf("Todos"))
+
+    // State for renaming/merging catalogs
+    private val _isMergingCatalog = MutableStateFlow(false)
+    val isMergingCatalog: StateFlow<Boolean> = _isMergingCatalog.asStateFlow()
 
     // Cart for Salida / Venta Rápida
     private val _cart = MutableStateFlow<List<CartItem>>(emptyList())
@@ -2217,6 +2226,58 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                 _errorMessage.value = "Error al eliminar producto: ${e.localizedMessage}"
             } finally {
                 _isSyncing.value = false
+            }
+        }
+    }
+
+    // 7.1 FUSIONAR / RENOMBRAR CATÁLOGO (Batch Firestore Update)
+    fun fusionarCatalogo(nombreViejo: String, nombreNuevo: String, onComplete: () -> Unit = {}) {
+        val cleanViejo = nombreViejo.trim()
+        val cleanNuevo = nombreNuevo.trim()
+        if (cleanViejo.isBlank() || cleanNuevo.isBlank()) {
+            _errorMessage.value = "El nombre del catálogo no puede estar vacío"
+            return
+        }
+
+        viewModelScope.launch {
+            _isMergingCatalog.value = true
+            _errorMessage.value = null
+            try {
+                // Find all matching products in Firestore
+                val snapshot = firestore.collection("productos").get().await()
+                val docsToUpdate = snapshot.documents.filter { doc ->
+                    val cat = (doc.getString("catalogo") ?: (doc.get("catalogo") as? String) ?: "").trim()
+                    cat.equals(cleanViejo, ignoreCase = true)
+                }
+
+                if (docsToUpdate.isEmpty()) {
+                    _successMessage.value = "No se encontraron productos en el catálogo '$cleanViejo'"
+                    _isMergingCatalog.value = false
+                    onComplete()
+                    return@launch
+                }
+
+                // Batch updates in chunks of 450 (Firestore limit is 500 per batch)
+                docsToUpdate.chunked(450).forEach { chunk ->
+                    val batch = firestore.batch()
+                    chunk.forEach { doc ->
+                        batch.update(doc.reference, "catalogo", cleanNuevo)
+                    }
+                    batch.commit().await()
+                }
+
+                // If currently selected category matches the old name, update it to the new name
+                if (_selectedCategory.value.trim().equals(cleanViejo, ignoreCase = true)) {
+                    _selectedCategory.value = cleanNuevo
+                }
+
+                _successMessage.value = "Catálogo '$cleanViejo' actualizado a '$cleanNuevo' en ${docsToUpdate.size} producto(s)"
+                onComplete()
+            } catch (e: Exception) {
+                Log.e("InventoryViewModel", "Error al fusionar catálogos: ${e.message}", e)
+                _errorMessage.value = "Error al fusionar catálogos: ${e.localizedMessage}"
+            } finally {
+                _isMergingCatalog.value = false
             }
         }
     }

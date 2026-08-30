@@ -120,6 +120,7 @@ fun TermicoudApp(viewModel: InventoryViewModel = viewModel()) {
     val isCurrentUserAdmin by viewModel.isCurrentUserAdmin.collectAsStateWithLifecycle()
     val allUsers by viewModel.allUsers.collectAsStateWithLifecycle()
     val isCheckingUserApproval by viewModel.isCheckingUserApproval.collectAsStateWithLifecycle()
+    val isMergingCatalog by viewModel.isMergingCatalog.collectAsStateWithLifecycle()
 
     val gananciasActuales by viewModel.gananciasActuales.collectAsStateWithLifecycle()
     val historialMeses by viewModel.historialMeses.collectAsStateWithLifecycle()
@@ -136,6 +137,13 @@ fun TermicoudApp(viewModel: InventoryViewModel = viewModel()) {
     var showingQuickScanScreen by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
+
+    // Guard: Redirect non-admin away from Ganancias tab (5) if navigated there
+    LaunchedEffect(isCurrentUserAdmin, selectedTab) {
+        if (!isCurrentUserAdmin && selectedTab == 5) {
+            viewModel.selectTab(0)
+        }
+    }
 
     // Success message toast
     LaunchedEffect(successMessage) {
@@ -288,9 +296,11 @@ fun TermicoudApp(viewModel: InventoryViewModel = viewModel()) {
                                     searchQuery = searchQuery,
                                     exchangeRate = exchangeRate,
                                     isSyncing = isSyncing,
+                                    isRenamingCategory = isMergingCatalog,
                                     onSearchQueryChange = { viewModel.setSearchQuery(it) },
                                     onCategorySelect = { viewModel.setCategory(it) },
                                     onStockFilterSelect = { viewModel.setStockFilter(it) },
+                                    onRenameCategory = { viejo, nuevo -> viewModel.fusionarCatalogo(viejo, nuevo) },
                                     onProductClick = { viewModel.openProductBottomSheet(it) },
                                     onQuickAddToCart = {
                                         viewModel.addToCart(it, 1)

@@ -1,8 +1,10 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,9 +24,15 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Category
 import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -32,11 +40,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -48,7 +58,6 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.material.icons.filled.Warning
 import com.example.data.model.Product
 import com.example.data.model.StockFilter
 import com.example.ui.components.InventoryListSkeleton
@@ -66,6 +75,7 @@ import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.theme.WarningAmber
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun InventoryScreen(
     products: List<Product>,
@@ -75,15 +85,30 @@ fun InventoryScreen(
     stockFilter: StockFilter = StockFilter.TODOS,
     exchangeRate: Double,
     isSyncing: Boolean,
+    isRenamingCategory: Boolean = false,
     onSearchQueryChange: (String) -> Unit,
     onCategorySelect: (String) -> Unit,
     onStockFilterSelect: (StockFilter) -> Unit = {},
+    onRenameCategory: ((String, String) -> Unit)? = null,
     onProductClick: (Product) -> Unit,
     onQuickAddToCart: (Product) -> Unit,
     onRefresh: () -> Unit
 ) {
     // Preserve scroll state across tab switches
     val listState = rememberSaveable(saver = LazyListState.Saver) { LazyListState() }
+
+    // Dialog state for renaming/merging catalogs on long press
+    var catalogToRename by remember { mutableStateOf<String?>(null) }
+    var newCatalogName by remember { mutableStateOf("") }
+
+    // Close rename dialog when operation completes successfully
+    var wasRenaming by remember { mutableStateOf(false) }
+    LaunchedEffect(isRenamingCategory) {
+        if (wasRenaming && !isRenamingCategory) {
+            catalogToRename = null
+        }
+        wasRenaming = isRenamingCategory
+    }
 
     // Progressive pagination in batches of 30
     var visibleItemCount by rememberSaveable(selectedCategory, searchQuery, stockFilter) { mutableIntStateOf(30) }
@@ -257,7 +282,8 @@ fun InventoryScreen(
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(categories) { category ->
-                val isSelected = category.equals(selectedCategory, ignoreCase = true)
+                val isSelected = category.trim().equals(selectedCategory.trim(), ignoreCase = true)
+                val isTodos = category.trim().equals("Todos", ignoreCase = true)
                 val bgColor = if (isSelected) ElectricLime else GraphiteSurface
                 val textColor = if (isSelected) Color.Black else TextPrimary
                 val borderColor = if (isSelected) ElectricLime else GraphiteBorder
@@ -267,7 +293,15 @@ fun InventoryScreen(
                         .clip(RoundedCornerShape(6.dp))
                         .background(bgColor)
                         .border(1.dp, borderColor, RoundedCornerShape(6.dp))
-                        .clickable { onCategorySelect(category) }
+                        .combinedClickable(
+                            onClick = { onCategorySelect(category) },
+                            onLongClick = if (!isTodos) {
+                                {
+                                    catalogToRename = category
+                                    newCatalogName = category
+                                }
+                            } else null
+                        )
                         .padding(horizontal = 14.dp, vertical = 6.dp)
                         .testTag("category_chip_$category"),
                     contentAlignment = Alignment.Center
@@ -355,5 +389,120 @@ fun InventoryScreen(
                 }
             }
         }
+    }
+
+    // Confirmation & Edit Dialog for Renaming / Merging Categories
+    if (catalogToRename != null) {
+        val currentOldName = catalogToRename ?: ""
+        AlertDialog(
+            onDismissRequest = {
+                if (!isRenamingCategory) catalogToRename = null
+            },
+            containerColor = GraphiteSurface,
+            titleContentColor = TextPrimary,
+            textContentColor = TextSecondary,
+            title = {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Category,
+                        contentDescription = null,
+                        tint = ElectricLime,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Text(
+                        text = "Renombrar / Fusionar Catálogo",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                }
+            },
+            text = {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        text = "Todos los productos que pertenezcan al catálogo \"$currentOldName\" (sin importar mayúsculas o espacios) van a pasar al nuevo nombre que escribas a continuación:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextSecondary,
+                        fontSize = 13.sp
+                    )
+                    Spacer(modifier = Modifier.height(14.dp))
+                    OutlinedTextField(
+                        value = newCatalogName,
+                        onValueChange = { newCatalogName = it },
+                        label = { Text("Nuevo nombre de catálogo", color = TextMuted) },
+                        singleLine = true,
+                        enabled = !isRenamingCategory,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("input_rename_catalog"),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = ElectricLime,
+                            unfocusedBorderColor = GraphiteBorder,
+                            focusedContainerColor = MaterialTheme.colorScheme.background,
+                            unfocusedContainerColor = MaterialTheme.colorScheme.background,
+                            focusedTextColor = TextPrimary,
+                            unfocusedTextColor = TextPrimary
+                        ),
+                        shape = RoundedCornerShape(8.dp)
+                    )
+                    if (newCatalogName.trim().isNotBlank() && !newCatalogName.trim().equals(currentOldName.trim(), ignoreCase = true)) {
+                        val matchingTarget = categories.find { it.trim().equals(newCatalogName.trim(), ignoreCase = true) && !it.equals("Todos", ignoreCase = true) }
+                        if (matchingTarget != null) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "ℹ️ Se fusionará con el catálogo existente \"$matchingTarget\".",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = WarningAmber
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newCatalogName.trim().isNotBlank()) {
+                            onRenameCategory?.invoke(currentOldName, newCatalogName.trim())
+                        }
+                    },
+                    enabled = !isRenamingCategory && newCatalogName.trim().isNotBlank(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ElectricLime,
+                        contentColor = Color.Black,
+                        disabledContainerColor = ElectricLime.copy(alpha = 0.4f),
+                        disabledContentColor = Color.Black.copy(alpha = 0.5f)
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.testTag("btn_confirm_rename_catalog")
+                ) {
+                    if (isRenamingCategory) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(14.dp),
+                                color = Color.Black,
+                                strokeWidth = 2.dp
+                            )
+                            Text("Guardando...", fontWeight = FontWeight.Bold)
+                        }
+                    } else {
+                        Text("Confirmar y Guardar", fontWeight = FontWeight.Bold)
+                    }
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { catalogToRename = null },
+                    enabled = !isRenamingCategory
+                ) {
+                    Text("Cancelar", color = TextSecondary)
+                }
+            }
+        )
     }
 }
