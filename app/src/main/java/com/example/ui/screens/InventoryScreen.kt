@@ -39,6 +39,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -66,6 +67,7 @@ import com.example.ui.theme.AlertRed
 import com.example.ui.theme.ElectricLime
 import com.example.ui.theme.GraphiteBorder
 import com.example.ui.theme.GraphiteSurface
+import com.example.ui.theme.OnElectricLime
 import com.example.ui.theme.StatusAgotado
 import com.example.ui.theme.StatusAgotadoBg
 import com.example.ui.theme.StatusBajo
@@ -206,70 +208,110 @@ fun InventoryScreen(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 2.dp),
+                .padding(horizontal = 16.dp, vertical = 4.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // TODOS
             val isTodos = stockFilter == StockFilter.TODOS
-            Box(
+            Surface(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(if (isTodos) ElectricLime else GraphiteSurface)
-                    .border(1.dp, if (isTodos) ElectricLime else GraphiteBorder, RoundedCornerShape(6.dp))
+                    .clip(RoundedCornerShape(8.dp))
+                    .border(
+                        1.dp,
+                        if (isTodos) ElectricLime else GraphiteBorder,
+                        RoundedCornerShape(8.dp)
+                    )
                     .clickable { onStockFilterSelect(StockFilter.TODOS) }
-                    .padding(vertical = 7.dp)
                     .testTag("stock_filter_todos"),
-                contentAlignment = Alignment.Center
+                color = if (isTodos) ElectricLime else GraphiteSurface,
+                shape = RoundedCornerShape(8.dp)
             ) {
-                Text(
-                    text = "Todos",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = if (isTodos) FontWeight.Bold else FontWeight.Medium,
-                    color = if (isTodos) Color.Black else TextSecondary
-                )
+                Box(
+                    modifier = Modifier.padding(vertical = 8.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "Todos",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = if (isTodos) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isTodos) OnElectricLime else TextSecondary
+                    )
+                }
             }
 
             // AGOTADOS
             val isAgotados = stockFilter == StockFilter.AGOTADOS
-            Box(
+            Surface(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(if (isAgotados) ElectricLime else GraphiteSurface)
-                    .border(1.dp, if (isAgotados) ElectricLime else GraphiteBorder, RoundedCornerShape(6.dp))
+                    .clip(RoundedCornerShape(8.dp))
+                    .border(
+                        1.dp,
+                        if (isAgotados) StatusAgotado else GraphiteBorder,
+                        RoundedCornerShape(8.dp)
+                    )
                     .clickable { onStockFilterSelect(StockFilter.AGOTADOS) }
-                    .padding(vertical = 7.dp)
                     .testTag("stock_filter_agotados"),
-                contentAlignment = Alignment.Center
+                color = if (isAgotados) StatusAgotadoBg else GraphiteSurface,
+                shape = RoundedCornerShape(8.dp)
             ) {
-                Text(
-                    text = "Agotados",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = if (isAgotados) FontWeight.Bold else FontWeight.Medium,
-                    color = if (isAgotados) Color.Black else TextSecondary
-                )
+                Row(
+                    modifier = Modifier.padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(StatusAgotado)
+                    )
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text(
+                        text = "Agotados",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = if (isAgotados) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isAgotados) StatusAgotado else TextSecondary
+                    )
+                }
             }
 
             // STOCK BAJO
             val isBajo = stockFilter == StockFilter.STOCK_BAJO
-            Box(
+            Surface(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(if (isBajo) ElectricLime else GraphiteSurface)
-                    .border(1.dp, if (isBajo) ElectricLime else GraphiteBorder, RoundedCornerShape(6.dp))
+                    .clip(RoundedCornerShape(8.dp))
+                    .border(
+                        1.dp,
+                        if (isBajo) StatusBajo else GraphiteBorder,
+                        RoundedCornerShape(8.dp)
+                    )
                     .clickable { onStockFilterSelect(StockFilter.STOCK_BAJO) }
-                    .padding(vertical = 7.dp)
                     .testTag("stock_filter_stock_bajo"),
-                contentAlignment = Alignment.Center
+                color = if (isBajo) StatusBajoBg else GraphiteSurface,
+                shape = RoundedCornerShape(8.dp)
             ) {
-                Text(
-                    text = "Stock Bajo",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = if (isBajo) FontWeight.Bold else FontWeight.Medium,
-                    color = if (isBajo) Color.Black else TextSecondary
-                )
+                Row(
+                    modifier = Modifier.padding(vertical = 8.dp),
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(7.dp)
+                            .clip(androidx.compose.foundation.shape.CircleShape)
+                            .background(StatusBajo)
+                    )
+                    Spacer(modifier = Modifier.width(5.dp))
+                    Text(
+                        text = "Stock Bajo",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = if (isBajo) FontWeight.Bold else FontWeight.Medium,
+                        color = if (isBajo) StatusBajo else TextSecondary
+                    )
+                }
             }
         }
 
@@ -278,21 +320,20 @@ fun InventoryScreen(
         // Categories Chips Carousel
         LazyRow(
             modifier = Modifier.fillMaxWidth(),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             items(categories) { category ->
                 val isSelected = category.trim().equals(selectedCategory.trim(), ignoreCase = true)
                 val isTodos = category.trim().equals("Todos", ignoreCase = true)
                 val bgColor = if (isSelected) ElectricLime else GraphiteSurface
-                val textColor = if (isSelected) Color.Black else TextPrimary
+                val textColor = if (isSelected) OnElectricLime else TextPrimary
                 val borderColor = if (isSelected) ElectricLime else GraphiteBorder
 
-                Box(
+                Surface(
                     modifier = Modifier
-                        .clip(RoundedCornerShape(6.dp))
-                        .background(bgColor)
-                        .border(1.dp, borderColor, RoundedCornerShape(6.dp))
+                        .clip(RoundedCornerShape(8.dp))
+                        .border(1.dp, borderColor, RoundedCornerShape(8.dp))
                         .combinedClickable(
                             onClick = { onCategorySelect(category) },
                             onLongClick = if (!isTodos) {
@@ -302,16 +343,30 @@ fun InventoryScreen(
                                 }
                             } else null
                         )
-                        .padding(horizontal = 14.dp, vertical = 6.dp)
                         .testTag("category_chip_$category"),
-                    contentAlignment = Alignment.Center
+                    color = bgColor,
+                    shape = RoundedCornerShape(8.dp)
                 ) {
-                    Text(
-                        text = category,
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                        color = textColor
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 7.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        if (!isTodos) {
+                            Icon(
+                                imageVector = Icons.Default.Category,
+                                contentDescription = null,
+                                tint = if (isSelected) OnElectricLime else ElectricLime,
+                                modifier = Modifier.size(13.dp)
+                            )
+                            Spacer(modifier = Modifier.width(5.dp))
+                        }
+                        Text(
+                            text = category,
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color = textColor
+                        )
+                    }
                 }
             }
         }

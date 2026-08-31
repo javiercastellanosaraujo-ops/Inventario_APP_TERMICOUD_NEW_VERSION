@@ -14,50 +14,43 @@ val TermicoudTypography = Typography(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Bold,
         fontSize = 28.sp,
-        letterSpacing = (-0.5).sp,
-        color = TextPrimary
+        letterSpacing = (-0.5).sp
     ),
     titleLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Bold,
         fontSize = 20.sp,
-        letterSpacing = 0.sp,
-        color = TextPrimary
+        letterSpacing = 0.sp
     ),
     titleMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 16.sp,
-        letterSpacing = 0.15.sp,
-        color = TextPrimary
+        letterSpacing = 0.15.sp
     ),
     bodyLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Normal,
         fontSize = 15.sp,
-        letterSpacing = 0.25.sp,
-        color = TextPrimary
+        letterSpacing = 0.25.sp
     ),
     bodyMedium = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Normal,
         fontSize = 13.sp,
-        letterSpacing = 0.25.sp,
-        color = TextSecondary
+        letterSpacing = 0.25.sp
     ),
     labelLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.SemiBold,
         fontSize = 14.sp,
-        letterSpacing = 0.5.sp,
-        color = TextPrimary
+        letterSpacing = 0.5.sp
     ),
     labelSmall = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Medium,
         fontSize = 11.sp,
-        letterSpacing = 0.5.sp,
-        color = TextSecondary
+        letterSpacing = 0.5.sp
     )
 )
 
@@ -66,22 +59,19 @@ val MonoDataLarge = TextStyle(
     fontFamily = MonoFontFamily,
     fontWeight = FontWeight.Bold,
     fontSize = 24.sp,
-    letterSpacing = 0.sp,
-    color = ElectricLime
+    letterSpacing = 0.sp
 )
 
 val MonoDataMedium = TextStyle(
     fontFamily = MonoFontFamily,
     fontWeight = FontWeight.SemiBold,
     fontSize = 16.sp,
-    letterSpacing = 0.sp,
-    color = TextPrimary
+    letterSpacing = 0.sp
 )
 
 val MonoDataSmall = TextStyle(
     fontFamily = MonoFontFamily,
     fontWeight = FontWeight.Normal,
     fontSize = 13.sp,
-    letterSpacing = 0.sp,
-    color = TextSecondary
+    letterSpacing = 0.sp
 )

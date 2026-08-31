@@ -15,11 +15,18 @@ class AppPreferencesRepository(context: Context) {
         private const val KEY_EXCHANGE_RATE = "key_exchange_rate"
         private const val KEY_USER_SELECTED = "key_user_selected"
         private const val KEY_BACKEND_URL = "key_backend_url"
+        private const val KEY_IS_DARK_MODE = "key_is_dark_mode"
 
         const val DEFAULT_USER = "Operador"
         const val DEFAULT_EXCHANGE_RATE = 36.50
         const val DEFAULT_BACKEND_URL = ""
+        const val DEFAULT_DARK_MODE = false
     }
+
+    private val _isDarkMode = MutableStateFlow(
+        prefs.getBoolean(KEY_IS_DARK_MODE, DEFAULT_DARK_MODE)
+    )
+    val isDarkMode: StateFlow<Boolean> = _isDarkMode.asStateFlow()
 
     private val _activeUser = MutableStateFlow(
         prefs.getString(KEY_ACTIVE_USER, DEFAULT_USER) ?: DEFAULT_USER
@@ -40,6 +47,15 @@ class AppPreferencesRepository(context: Context) {
         prefs.getString(KEY_BACKEND_URL, DEFAULT_BACKEND_URL) ?: DEFAULT_BACKEND_URL
     )
     val backendUrl: StateFlow<String> = _backendUrl.asStateFlow()
+
+    fun setDarkMode(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_IS_DARK_MODE, enabled).apply()
+        _isDarkMode.value = enabled
+    }
+
+    fun toggleDarkMode() {
+        setDarkMode(!_isDarkMode.value)
+    }
 
     fun setActiveUser(user: String) {
         prefs.edit()

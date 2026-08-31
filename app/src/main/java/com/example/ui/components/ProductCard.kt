@@ -11,8 +11,16 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.LocalOffer
+import androidx.compose.material.icons.filled.QrCode
+import androidx.compose.material.icons.filled.ShoppingCart
+import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -22,20 +30,24 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.model.Product
+import com.example.ui.theme.CardHighlightColor
 import com.example.ui.theme.ElectricLime
 import com.example.ui.theme.GraphiteBorder
 import com.example.ui.theme.GraphiteSurface
+import com.example.ui.theme.GraphiteSurfaceVariant
 import com.example.ui.theme.MonoDataMedium
 import com.example.ui.theme.MonoDataSmall
+import com.example.ui.theme.OnElectricLime
 import com.example.ui.theme.StatusAgotado
 import com.example.ui.theme.StatusAgotadoBg
 import com.example.ui.theme.StatusBajo
 import com.example.ui.theme.StatusBajoBg
+import com.example.ui.theme.StatusOk
+import com.example.ui.theme.StatusOkBg
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
@@ -50,37 +62,38 @@ fun ProductCard(
 ) {
     val isOutOfStock = product.cantidad <= 0
     val isLowStock = product.cantidad in 1..product.minStock
-    val cardAlpha = if (isOutOfStock) 0.70f else 1.0f
+    val cardAlpha = if (isOutOfStock) 0.85f else 1.0f
     val priceBs = product.precioUsd * exchangeRate
     val hasWholesale = product.precioMayor != null && product.precioMayor > 0 &&
             product.cantidadMinimaMayor != null && product.cantidadMinimaMayor > 0
 
     val borderColor = when {
-        isOutOfStock -> StatusAgotadoBg
-        isLowStock -> StatusBajoBg
+        isOutOfStock -> StatusAgotado.copy(alpha = 0.75f)
+        isLowStock -> StatusBajo.copy(alpha = 0.75f)
         else -> GraphiteBorder
     }
 
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(12.dp))
             .border(
-                width = 1.dp,
+                width = if (isOutOfStock || isLowStock) 1.5.dp else 1.dp,
                 color = borderColor,
-                shape = RoundedCornerShape(8.dp)
+                shape = RoundedCornerShape(12.dp)
             )
             .clickable { onClick() }
             .testTag("product_card_${product.id.ifBlank { product.fila.toString() }}"),
         color = GraphiteSurface.copy(alpha = cardAlpha),
-        shape = RoundedCornerShape(8.dp)
+        shape = RoundedCornerShape(12.dp),
+        shadowElevation = 2.dp
     ) {
         Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(14.dp)
         ) {
-            // Header Row: Category Badge & Status Badge
+            // Header Row: Category Badge, Barcode & Stock Status Pill
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -88,163 +101,252 @@ fun ProductCard(
             ) {
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    modifier = Modifier.weight(1f, fill = false)
                 ) {
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(GraphiteBorder)
-                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(GraphiteSurfaceVariant)
+                            .border(1.dp, GraphiteBorder.copy(alpha = 0.6f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 8.dp, vertical = 3.dp)
                     ) {
                         Text(
                             text = product.catalogo.uppercase(Locale.getDefault()),
                             style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
                             fontSize = 10.sp,
-                            color = TextSecondary
+                            color = TextSecondary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
 
                     if (product.codigoBarras.isNotBlank()) {
-                        Box(
+                        Row(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(4.dp))
+                                .clip(RoundedCornerShape(6.dp))
                                 .background(ElectricLime.copy(alpha = 0.12f))
-                                .padding(horizontal = 6.dp, vertical = 2.dp)
+                                .padding(horizontal = 6.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
+                            Icon(
+                                imageVector = Icons.Default.QrCode,
+                                contentDescription = null,
+                                tint = ElectricLime,
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
                             Text(
-                                text = "EAN: ${product.codigoBarras}",
+                                text = product.codigoBarras,
                                 style = MonoDataSmall.copy(
-                                    fontSize = 9.sp,
+                                    fontSize = 9.5.sp,
+                                    fontWeight = FontWeight.Bold,
                                     color = ElectricLime
-                                )
+                                ),
+                                maxLines = 1
                             )
                         }
                     }
                 }
 
+                // Prominent Stock Status Pill
                 if (isOutOfStock) {
                     Box(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
+                            .clip(RoundedCornerShape(20.dp))
                             .background(StatusAgotadoBg)
-                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                            .border(1.dp, StatusAgotado.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                            .padding(horizontal = 9.dp, vertical = 3.dp)
                     ) {
                         Text(
-                            text = "AGOTADO",
+                            text = "✕ AGOTADO",
                             style = MaterialTheme.typography.labelSmall,
-                            fontSize = 10.sp,
-                            fontWeight = FontWeight.Bold,
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Black,
                             color = StatusAgotado
                         )
                     }
                 } else if (isLowStock) {
-                    Box(
+                    Row(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(4.dp))
+                            .clip(RoundedCornerShape(20.dp))
                             .background(StatusBajoBg)
-                            .padding(horizontal = 8.dp, vertical = 2.dp)
+                            .border(1.dp, StatusBajo.copy(alpha = 0.5f), RoundedCornerShape(20.dp))
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Icon(
+                            imageVector = Icons.Default.Warning,
+                            contentDescription = null,
+                            tint = StatusBajo,
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Spacer(modifier = Modifier.width(3.dp))
                         Text(
-                            text = "STOCK BAJO (${product.cantidad} un.)",
+                            text = "${product.cantidad} un. (Bajo)",
                             style = MaterialTheme.typography.labelSmall,
-                            fontSize = 10.sp,
+                            fontSize = 10.5.sp,
                             fontWeight = FontWeight.Bold,
                             color = StatusBajo
                         )
                     }
                 } else {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = "Stock: ",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = TextMuted
+                    Row(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(StatusOkBg)
+                            .border(1.dp, StatusOk.copy(alpha = 0.4f), RoundedCornerShape(20.dp))
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CheckCircle,
+                            contentDescription = null,
+                            tint = StatusOk,
+                            modifier = Modifier.size(12.dp)
                         )
+                        Spacer(modifier = Modifier.width(3.dp))
                         Text(
                             text = "${product.cantidad} un.",
-                            style = MonoDataSmall.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
-                            )
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = StatusOk
                         )
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // Product Name
+            // Product Name - High Legibility
             Text(
                 text = product.producto,
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontSize = 16.sp,
+                    lineHeight = 20.sp
+                ),
+                fontWeight = FontWeight.Bold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
                 color = TextPrimary
             )
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Price Row
+            // Price Row with Highlighted Price Box
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Column {
-                    Text(
-                        text = String.format(Locale.US, "$ %.2f USD", product.precioUsd),
-                        style = MonoDataMedium.copy(
-                            fontSize = 17.sp,
-                            color = ElectricLime
+                // Price Container
+                Surface(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(GraphiteSurfaceVariant)
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    color = GraphiteSurfaceVariant
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = String.format(Locale.US, "$%.2f", product.precioUsd),
+                            style = MonoDataMedium.copy(
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Black,
+                                color = ElectricLime
+                            )
                         )
-                    )
-                    Text(
-                        text = String.format(Locale.US, "Bs %.2f", priceBs),
-                        style = MonoDataSmall,
-                        color = TextSecondary
-                    )
 
-                    if (hasWholesale) {
-                        Spacer(modifier = Modifier.height(3.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "Al mayor: ",
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                color = TextMuted
+                        Box(
+                            modifier = Modifier
+                                .height(16.dp)
+                                .width(1.dp)
+                                .background(GraphiteBorder)
+                        )
+
+                        Text(
+                            text = String.format(Locale.US, "Bs %.2f", priceBs),
+                            style = MonoDataSmall.copy(
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = TextSecondary
                             )
-                            Text(
-                                text = String.format(Locale.US, "$%.2f", product.precioMayor),
-                                style = MonoDataSmall.copy(
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = ElectricLime
-                                )
-                            )
-                            Text(
-                                text = " desde ${product.cantidadMinimaMayor} un.",
-                                style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
-                                color = TextMuted
-                            )
-                        }
+                        )
                     }
                 }
 
                 if (onQuickAdd != null && !isOutOfStock) {
-                    Box(
+                    Surface(
                         modifier = Modifier
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(ElectricLime)
+                            .clip(RoundedCornerShape(8.dp))
                             .clickable { onQuickAdd() }
-                            .padding(horizontal = 12.dp, vertical = 8.dp),
-                        contentAlignment = Alignment.Center
+                            .testTag("btn_quick_add_${product.id.ifBlank { product.fila.toString() }}"),
+                        color = ElectricLime,
+                        shape = RoundedCornerShape(8.dp)
                     ) {
-                        Text(
-                            text = "+ Vender",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = GraphiteSurface
-                        )
+                        Row(
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.ShoppingCart,
+                                contentDescription = null,
+                                tint = OnElectricLime,
+                                modifier = Modifier.size(15.dp)
+                            )
+                            Text(
+                                text = "+ Vender",
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Black,
+                                color = OnElectricLime
+                            )
+                        }
                     }
+                }
+            }
+
+            // Wholesale Price Badge
+            if (hasWholesale) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(CardHighlightColor)
+                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.LocalOffer,
+                        contentDescription = null,
+                        tint = ElectricLime,
+                        modifier = Modifier.size(13.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "Precio Mayor: ",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                        color = TextMuted
+                    )
+                    Text(
+                        text = String.format(Locale.US, "$%.2f USD", product.precioMayor),
+                        style = MonoDataSmall.copy(
+                            fontSize = 11.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = ElectricLime
+                        )
+                    )
+                    Text(
+                        text = " (a partir de ${product.cantidadMinimaMayor} un.)",
+                        style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp),
+                        color = TextSecondary
+                    )
                 }
             }
         }

@@ -78,8 +78,10 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
 
         setContent {
-            TermicoudTheme {
-                TermicoudApp()
+            val viewModel: InventoryViewModel = viewModel()
+            val isDarkMode by viewModel.isDarkMode.collectAsStateWithLifecycle()
+            TermicoudTheme(darkTheme = isDarkMode) {
+                TermicoudApp(viewModel = viewModel)
             }
         }
     }
@@ -89,6 +91,7 @@ class MainActivity : ComponentActivity() {
 fun TermicoudApp(viewModel: InventoryViewModel = viewModel()) {
     var showingBrandSplash by remember { mutableStateOf(true) }
 
+    val isDarkMode by viewModel.isDarkMode.collectAsStateWithLifecycle()
     val currentUser by viewModel.currentUser.collectAsStateWithLifecycle()
     val activeUser by viewModel.activeUser.collectAsStateWithLifecycle()
     val exchangeRate by viewModel.exchangeRate.collectAsStateWithLifecycle()
@@ -277,6 +280,8 @@ fun TermicoudApp(viewModel: InventoryViewModel = viewModel()) {
                                     isSyncing = isSyncing,
                                     isAdmin = isCurrentUserAdmin,
                                     pendingUsersCount = allUsers.count { it.estado.equals("pendiente", ignoreCase = true) },
+                                    isDarkMode = isDarkMode,
+                                    onToggleDarkMode = { viewModel.toggleDarkMode() },
                                     onNavigateToTab = { tab -> viewModel.selectTab(tab) },
                                     onUpdateProfile = { newName, newEmail ->
                                         viewModel.updateUserProfile(newName, newEmail)
@@ -390,6 +395,8 @@ fun TermicoudApp(viewModel: InventoryViewModel = viewModel()) {
                                     isSyncing = isSyncing,
                                     tasaActualizada = tasaActualizada,
                                     tasaUsuario = tasaUsuario,
+                                    isDarkMode = isDarkMode,
+                                    onSetDarkMode = { viewModel.setDarkMode(it) },
                                     onRefreshTasa = { viewModel.fetchExchangeRateFromBackend() },
                                     onSaveExchangeRate = { viewModel.setExchangeRate(it) },
                                     onSaveBackendUrl = { viewModel.setBackendUrl(it) },

@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.sp
 import com.example.data.model.AppUser
 import com.example.ui.theme.AlertRed
 import com.example.ui.theme.ElectricLime
+import com.example.ui.theme.OnElectricLime
 import com.example.ui.theme.GraphiteBackground
 import com.example.ui.theme.GraphiteBorder
 import com.example.ui.theme.GraphiteSurface
@@ -201,9 +202,9 @@ fun UserApprovalLockScreen(
                         enabled = !isCheckingStatus,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = ElectricLime,
-                            contentColor = Color(0xFF121212),
+                            contentColor = OnElectricLime,
                             disabledContainerColor = ElectricLime.copy(alpha = 0.6f),
-                            disabledContentColor = Color(0xFF121212)
+                            disabledContentColor = OnElectricLime
                         ),
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier
@@ -214,13 +215,13 @@ fun UserApprovalLockScreen(
                         if (isCheckingStatus) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
-                                color = Color(0xFF121212),
+                                color = OnElectricLime,
                                 strokeWidth = 2.5.dp
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
                                 text = "Verificando...",
-                                color = Color(0xFF121212),
+                                color = OnElectricLime,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp
                             )
@@ -228,13 +229,13 @@ fun UserApprovalLockScreen(
                             Icon(
                                 imageVector = Icons.Default.Refresh,
                                 contentDescription = null,
-                                tint = Color(0xFF121212),
+                                tint = OnElectricLime,
                                 modifier = Modifier.size(20.dp)
                             )
                             Spacer(modifier = Modifier.width(10.dp))
                             Text(
                                 text = "Verificar Acceso / Aprobación",
-                                color = Color(0xFF121212),
+                                color = OnElectricLime,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 15.sp
                             )

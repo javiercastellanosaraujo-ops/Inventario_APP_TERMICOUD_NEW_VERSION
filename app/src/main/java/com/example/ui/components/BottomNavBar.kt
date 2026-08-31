@@ -75,13 +75,13 @@ fun BottomNavBar(
         modifier = Modifier
             .fillMaxWidth()
             .background(GraphiteSurface)
-            .border(width = 1.dp, color = GraphiteBorder)
+            .border(width = 1.dp, color = GraphiteBorder.copy(alpha = 0.8f))
             .navigationBarsPadding()
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(vertical = 4.dp, horizontal = 2.dp),
+                .padding(vertical = 6.dp, horizontal = 4.dp),
             horizontalArrangement = Arrangement.SpaceAround,
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -92,34 +92,37 @@ fun BottomNavBar(
                 Column(
                     modifier = Modifier
                         .weight(1f)
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(10.dp))
                         .clickable { onTabSelected(originalIndex) }
-                        .padding(vertical = 4.dp, horizontal = 1.dp)
+                        .padding(vertical = 3.dp, horizontal = 1.dp)
                         .testTag(item.testTag),
                     horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
                     Box(
                         modifier = Modifier
-                            .size(width = 36.dp, height = 24.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (isSelected) ElectricLime.copy(alpha = 0.15f) else androidx.compose.ui.graphics.Color.Transparent),
+                            .size(width = 44.dp, height = 26.dp)
+                            .clip(RoundedCornerShape(13.dp))
+                            .background(
+                                if (isSelected) ElectricLime.copy(alpha = 0.16f)
+                                else androidx.compose.ui.graphics.Color.Transparent
+                            ),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = item.icon,
                             contentDescription = item.title,
                             tint = tint,
-                            modifier = Modifier.size(19.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                     }
 
-                    Spacer(modifier = Modifier.height(2.dp))
+                    Spacer(modifier = Modifier.height(3.dp))
 
                     Text(
                         text = item.title,
-                        fontSize = 9.sp,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        fontSize = 9.5.sp,
+                        fontWeight = if (isSelected) FontWeight.Black else FontWeight.Medium,
                         color = tint,
                         maxLines = 1,
                         softWrap = false,

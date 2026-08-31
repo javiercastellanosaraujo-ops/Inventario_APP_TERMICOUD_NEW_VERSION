@@ -20,6 +20,10 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AddBox
+import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Inventory2
 import androidx.compose.material.icons.filled.Layers
@@ -33,8 +37,8 @@ import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Savings
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.filled.Description
-import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -80,10 +84,13 @@ import com.example.ui.theme.GraphiteSurfaceVariant
 import com.example.ui.theme.MonoDataLarge
 import com.example.ui.theme.MonoDataMedium
 import com.example.ui.theme.MonoDataSmall
+import com.example.ui.theme.OnElectricLime
 import com.example.ui.theme.StatusAgotado
 import com.example.ui.theme.StatusAgotadoBg
 import com.example.ui.theme.StatusBajo
 import com.example.ui.theme.StatusBajoBg
+import com.example.ui.theme.StatusOk
+import com.example.ui.theme.StatusOkBg
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
@@ -103,6 +110,8 @@ fun DashboardScreen(
     isSyncing: Boolean,
     isAdmin: Boolean = false,
     pendingUsersCount: Int = 0,
+    isDarkMode: Boolean = false,
+    onToggleDarkMode: () -> Unit = {},
     onNavigateToTab: (Int) -> Unit,
     onNavigateToStockAlerts: ((StockFilter) -> Unit)? = null,
     onUpdateProfile: (newName: String, newEmail: String) -> Unit = { _, _ -> },
@@ -204,7 +213,7 @@ fun DashboardScreen(
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.testTag("btn_save_profile")
                 ) {
-                    Text("Guardar Cambios", color = Color.Black, fontWeight = FontWeight.Bold)
+                    Text("Guardar Cambios", color = OnElectricLime, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -352,6 +361,24 @@ fun DashboardScreen(
                         }
                     }
 
+                    // Theme Toggle Button (Light Azul Cielo / Dark Graphite)
+                    IconButton(
+                        onClick = onToggleDarkMode,
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(GraphiteSurface)
+                            .border(1.dp, GraphiteBorder, RoundedCornerShape(10.dp))
+                            .testTag("btn_toggle_theme_dashboard")
+                    ) {
+                        Icon(
+                            imageVector = if (isDarkMode) Icons.Default.LightMode else Icons.Default.DarkMode,
+                            contentDescription = if (isDarkMode) "Cambiar a Modo Claro" else "Cambiar a Modo Oscuro",
+                            tint = ElectricLime,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
                     IconButton(
                         onClick = onSyncClick,
                         modifier = Modifier
@@ -401,6 +428,28 @@ fun DashboardScreen(
                             onDismissRequest = { showMoreMenu = false },
                             modifier = Modifier.background(GraphiteSurface)
                         ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Text(
+                                        text = if (isDarkMode) "Modo Claro (Azul Cielo)" else "Modo Oscuro (Grafito)",
+                                        color = TextPrimary
+                                    )
+                                },
+                                leadingIcon = {
+                                    Icon(
+                                        imageVector = if (isDarkMode) Icons.Default.LightMode else Icons.Default.DarkMode,
+                                        contentDescription = null,
+                                        tint = ElectricLime,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                },
+                                onClick = {
+                                    showMoreMenu = false
+                                    onToggleDarkMode()
+                                },
+                                modifier = Modifier.testTag("menu_item_toggle_theme")
+                            )
+
                             DropdownMenuItem(
                                 text = { Text("Actualizar Perfil", color = TextPrimary) },
                                 leadingIcon = {
@@ -586,77 +635,281 @@ fun DashboardScreen(
             }
         }
 
-        // Summary Card: Total Products & Categories
+        // Summary Card: Total Products & Categories - 4-Stat Metrics Grid
         item {
-            Surface(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .border(1.dp, GraphiteBorder, RoundedCornerShape(10.dp)),
-                color = GraphiteSurface,
-                shape = RoundedCornerShape(10.dp)
-            ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
                         text = "ESTADO DEL INVENTARIO",
                         style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
                         color = TextSecondary,
                         letterSpacing = 1.sp
                     )
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(20.dp))
+                            .background(GraphiteSurfaceVariant)
+                            .border(1.dp, GraphiteBorder, RoundedCornerShape(20.dp))
+                            .padding(horizontal = 10.dp, vertical = 4.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .clip(androidx.compose.foundation.shape.CircleShape)
+                                .background(StatusOk)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "1 USD = Bs. ${String.format(Locale.US, "%.2f", exchangeRate)}",
+                            style = MonoDataSmall.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                        )
+                    }
+                }
+
+                // 2x2 High-Impact Metrics Grid
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Card 1: Total Productos
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(1.dp, GraphiteBorder, RoundedCornerShape(12.dp)),
+                        color = GraphiteSurface,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(ElectricLime.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Inventory2,
+                                        contentDescription = null,
+                                        tint = ElectricLime,
+                                        modifier = Modifier.size(17.dp)
+                                    )
+                                }
+                                Text(
+                                    text = "$categoriesCount cat.",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextMuted
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = "$totalProducts",
-                                style = MonoDataLarge
+                                style = MonoDataLarge.copy(fontSize = 24.sp),
+                                fontWeight = FontWeight.Black,
+                                color = TextPrimary
                             )
                             Text(
                                 text = "Productos en catálogo",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextSecondary
-                            )
-                        }
-
-                        Column(horizontalAlignment = Alignment.End) {
-                            Text(
-                                text = "$categoriesCount",
-                                style = MonoDataLarge.copy(color = TextPrimary)
-                            )
-                            Text(
-                                text = "Catálogos / Categorías",
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = TextSecondary
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary,
+                                fontSize = 11.sp
                             )
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    Row(
+                    // Card 2: Total Unidades
+                    Surface(
                         modifier = Modifier
-                            .fillMaxWidth()
-                            .clip(RoundedCornerShape(6.dp))
-                            .background(GraphiteSurfaceVariant)
-                            .padding(12.dp),
-                        horizontalArrangement = Arrangement.SpaceBetween
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(1.dp, GraphiteBorder, RoundedCornerShape(12.dp)),
+                        color = GraphiteSurface,
+                        shape = RoundedCornerShape(12.dp)
                     ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Stock Total: ", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(StatusOkBg),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CheckCircle,
+                                        contentDescription = null,
+                                        tint = StatusOk,
+                                        modifier = Modifier.size(17.dp)
+                                    )
+                                }
+                                Text(
+                                    text = "Total",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = TextMuted
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
                             Text(
-                                text = "$totalStockUnits un.",
-                                style = MonoDataMedium
+                                text = "$totalStockUnits",
+                                style = MonoDataLarge.copy(fontSize = 24.sp),
+                                fontWeight = FontWeight.Black,
+                                color = StatusOk
+                            )
+                            Text(
+                                text = "Unidades físicas",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary,
+                                fontSize = 11.sp
                             )
                         }
+                    }
+                }
 
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("Agotados: ", style = MaterialTheme.typography.bodyMedium, color = TextSecondary)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    // Card 3: Stock Bajo
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(
+                                1.dp,
+                                if (lowStockCount > 0) StatusBajo.copy(alpha = 0.5f) else GraphiteBorder,
+                                RoundedCornerShape(12.dp)
+                            )
+                            .clickable {
+                                if (lowStockCount > 0) {
+                                    onNavigateToStockAlerts?.invoke(StockFilter.STOCK_BAJO) ?: onNavigateToTab(1)
+                                }
+                            },
+                        color = if (lowStockCount > 0) StatusBajoBg else GraphiteSurface,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (lowStockCount > 0) StatusBajo.copy(alpha = 0.2f) else GraphiteSurfaceVariant),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Warning,
+                                        contentDescription = null,
+                                        tint = if (lowStockCount > 0) StatusBajo else TextMuted,
+                                        modifier = Modifier.size(17.dp)
+                                    )
+                                }
+                                if (lowStockCount > 0) {
+                                    Text(
+                                        text = "Atención",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = StatusBajo
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
+                            Text(
+                                text = "$lowStockCount",
+                                style = MonoDataLarge.copy(fontSize = 24.sp),
+                                fontWeight = FontWeight.Black,
+                                color = if (lowStockCount > 0) StatusBajo else TextPrimary
+                            )
+                            Text(
+                                text = "Stock Bajo",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+
+                    // Card 4: Agotados
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(
+                                1.dp,
+                                if (outOfStockCount > 0) StatusAgotado.copy(alpha = 0.5f) else GraphiteBorder,
+                                RoundedCornerShape(12.dp)
+                            )
+                            .clickable {
+                                if (outOfStockCount > 0) {
+                                    onNavigateToStockAlerts?.invoke(StockFilter.AGOTADOS) ?: onNavigateToTab(1)
+                                }
+                            },
+                        color = if (outOfStockCount > 0) StatusAgotadoBg else GraphiteSurface,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(modifier = Modifier.padding(12.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(32.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(if (outOfStockCount > 0) StatusAgotado.copy(alpha = 0.2f) else GraphiteSurfaceVariant),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Close,
+                                        contentDescription = null,
+                                        tint = if (outOfStockCount > 0) StatusAgotado else TextMuted,
+                                        modifier = Modifier.size(17.dp)
+                                    )
+                                }
+                                if (outOfStockCount > 0) {
+                                    Text(
+                                        text = "Crítico",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        fontWeight = FontWeight.Bold,
+                                        color = StatusAgotado
+                                    )
+                                }
+                            }
+                            Spacer(modifier = Modifier.height(8.dp))
                             Text(
                                 text = "$outOfStockCount",
-                                style = MonoDataMedium.copy(color = if (outOfStockCount > 0) MaterialTheme.colorScheme.error else ElectricLime)
+                                style = MonoDataLarge.copy(fontSize = 24.sp),
+                                fontWeight = FontWeight.Black,
+                                color = if (outOfStockCount > 0) StatusAgotado else TextPrimary
+                            )
+                            Text(
+                                text = "Sin Existencias",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary,
+                                fontSize = 11.sp
                             )
                         }
                     }
@@ -864,12 +1117,16 @@ private fun QuickActionCard(
 
     Surface(
         modifier = modifier
-            .clip(RoundedCornerShape(8.dp))
-            .border(1.dp, borderColor, RoundedCornerShape(8.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .border(
+                width = if (isHighlight) 1.5.dp else 1.dp,
+                color = borderColor,
+                shape = RoundedCornerShape(12.dp)
+            )
             .clickable { onClick() }
             .testTag(testTag),
         color = bgColor,
-        shape = RoundedCornerShape(8.dp)
+        shape = RoundedCornerShape(12.dp)
     ) {
         Row(
             modifier = Modifier
@@ -879,27 +1136,29 @@ private fun QuickActionCard(
         ) {
             Box(
                 modifier = Modifier
-                    .size(38.dp)
-                    .clip(RoundedCornerShape(6.dp))
-                    .background(if (isHighlight) ElectricLime else GraphiteBorder),
+                    .size(40.dp)
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(
+                        if (isHighlight) ElectricLime else GraphiteSurfaceVariant
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = icon,
                     contentDescription = null,
-                    tint = if (isHighlight) GraphiteSurface else TextPrimary,
-                    modifier = Modifier.size(20.dp)
+                    tint = if (isHighlight) OnElectricLime else ElectricLime,
+                    modifier = Modifier.size(22.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.width(10.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
             Column(
                 modifier = Modifier.weight(1f, fill = false)
             ) {
                 Text(
                     text = title,
-                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 14.sp),
+                    style = MaterialTheme.typography.titleMedium.copy(fontSize = 14.5.sp),
                     fontWeight = FontWeight.Bold,
                     color = TextPrimary,
                     maxLines = 1,
@@ -908,7 +1167,7 @@ private fun QuickActionCard(
                 )
                 Text(
                     text = subtitle,
-                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.sp),
+                    style = MaterialTheme.typography.bodyMedium.copy(fontSize = 11.5.sp),
                     color = TextSecondary,
                     maxLines = 1,
                     softWrap = false,
@@ -927,10 +1186,10 @@ fun RecentSaleItem(sale: Sale) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(8.dp))
-            .border(1.dp, GraphiteBorder, RoundedCornerShape(8.dp)),
+            .clip(RoundedCornerShape(12.dp))
+            .border(1.dp, GraphiteBorder, RoundedCornerShape(12.dp)),
         color = GraphiteSurface,
-        shape = RoundedCornerShape(8.dp)
+        shape = RoundedCornerShape(12.dp)
     ) {
         Row(
             modifier = Modifier
@@ -939,39 +1198,79 @@ fun RecentSaleItem(sale: Sale) {
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = sale.usuario,
-                        style = MaterialTheme.typography.labelLarge,
-                        color = TextPrimary
-                    )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text(
-                        text = "• $dateStr",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = TextSecondary,
-                        fontSize = 12.sp
+            Row(
+                modifier = Modifier.weight(1f, fill = false),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(36.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(GraphiteSurfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.PointOfSale,
+                        contentDescription = null,
+                        tint = ElectricLime,
+                        modifier = Modifier.size(18.dp)
                     )
                 }
-                Text(
-                    text = "${sale.items.sumOf { it.cantidad }} items: ${sale.items.joinToString(", ") { it.producto }}",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = TextMuted,
-                    fontSize = 12.sp,
-                    maxLines = 1
-                )
+
+                Spacer(modifier = Modifier.width(10.dp))
+
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = sale.usuario,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            color = TextPrimary
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "• $dateStr",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextSecondary,
+                            fontSize = 11.sp
+                        )
+                    }
+                    Text(
+                        text = "${sale.items.sumOf { it.cantidad }} items: ${sale.items.joinToString(", ") { it.producto }}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextMuted,
+                        fontSize = 11.5.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             }
 
-            Column(horizontalAlignment = Alignment.End) {
-                Text(
-                    text = String.format(Locale.US, "$ %.2f", sale.totalUsd),
-                    style = MonoDataMedium.copy(color = ElectricLime)
-                )
-                Text(
-                    text = String.format(Locale.US, "Bs %.2f", sale.totalBs),
-                    style = MonoDataSmall
-                )
+            Spacer(modifier = Modifier.width(8.dp))
+
+            // Sale Total Block
+            Surface(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(GraphiteSurfaceVariant)
+                    .padding(horizontal = 8.dp, vertical = 5.dp),
+                color = GraphiteSurfaceVariant
+            ) {
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = String.format(Locale.US, "$ %.2f", sale.totalUsd),
+                        style = MonoDataMedium.copy(
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Black,
+                            color = ElectricLime
+                        )
+                    )
+                    Text(
+                        text = String.format(Locale.US, "Bs %.2f", sale.totalBs),
+                        style = MonoDataSmall.copy(fontSize = 10.5.sp),
+                        color = TextSecondary
+                    )
+                }
             }
         }
     }

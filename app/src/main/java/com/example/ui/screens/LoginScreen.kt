@@ -68,6 +68,7 @@ import com.example.data.model.UserSession
 import com.google.android.gms.common.ConnectionResult
 import com.google.android.gms.common.GoogleApiAvailability
 import com.example.ui.theme.ElectricLime
+import com.example.ui.theme.OnElectricLime
 import com.example.ui.theme.GraphiteBackground
 import com.example.ui.theme.GraphiteBorder
 import com.example.ui.theme.GraphiteSurface
@@ -75,6 +76,7 @@ import com.example.ui.theme.GraphiteSurfaceVariant
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
+import com.example.ui.theme.isAppDarkTheme
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
@@ -91,6 +93,7 @@ fun LoginScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val auth = remember { FirebaseAuth.getInstance() }
+    val isDark = isAppDarkTheme
 
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
@@ -106,15 +109,16 @@ fun LoginScreen(
         modifier = Modifier
             .fillMaxSize()
             .background(GraphiteBackground)
-            .padding(24.dp),
+            .padding(20.dp),
         contentAlignment = Alignment.Center
     ) {
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .border(1.dp, GraphiteBorder, RoundedCornerShape(16.dp)),
-            shape = RoundedCornerShape(16.dp),
-            color = GraphiteSurface
+                .border(1.5.dp, GraphiteBorder, RoundedCornerShape(20.dp)),
+            shape = RoundedCornerShape(20.dp),
+            color = GraphiteSurface,
+            shadowElevation = if (isDark) 0.dp else 4.dp
         ) {
             Column(
                 modifier = Modifier
@@ -126,9 +130,9 @@ fun LoginScreen(
                 // App Logo / Badge
                 Box(
                     modifier = Modifier
-                        .size(80.dp)
+                        .size(86.dp)
                         .clip(CircleShape)
-                        .background(ElectricLime.copy(alpha = 0.15f)),
+                        .background(ElectricLime.copy(alpha = if (isDark) 0.15f else 0.10f)),
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
@@ -146,10 +150,10 @@ fun LoginScreen(
 
                 Text(
                     text = AppConfig.APP_FULL_TITLE,
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelLarge,
                     color = ElectricLime,
                     letterSpacing = 2.sp,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.ExtraBold
                 )
 
                 Text(
@@ -173,12 +177,12 @@ fun LoginScreen(
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .border(1.dp, ElectricLime.copy(alpha = 0.4f), RoundedCornerShape(12.dp)),
+                            .border(1.5.dp, ElectricLime.copy(alpha = 0.5f), RoundedCornerShape(14.dp)),
                         color = GraphiteSurfaceVariant,
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(14.dp)
                     ) {
                         Column(
-                            modifier = Modifier.padding(16.dp),
+                            modifier = Modifier.padding(18.dp),
                             horizontalAlignment = Alignment.CenterHorizontally
                         ) {
                             Row(
@@ -189,7 +193,7 @@ fun LoginScreen(
                                     imageVector = Icons.Default.CheckCircle,
                                     contentDescription = null,
                                     tint = ElectricLime,
-                                    modifier = Modifier.size(20.dp)
+                                    modifier = Modifier.size(22.dp)
                                 )
                                 Text(
                                     text = "Sesión Activa",
@@ -199,7 +203,7 @@ fun LoginScreen(
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
 
                             Text(
                                 text = currentUser.displayName.ifBlank { "Operador" },
@@ -214,20 +218,24 @@ fun LoginScreen(
                                 color = TextMuted
                             )
 
-                            Spacer(modifier = Modifier.height(16.dp))
+                            Spacer(modifier = Modifier.height(18.dp))
 
                             Button(
                                 onClick = { onLoginSuccess(currentUser) },
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .height(48.dp)
                                     .testTag("btn_continue_to_inventory"),
-                                colors = ButtonDefaults.buttonColors(containerColor = ElectricLime),
-                                shape = RoundedCornerShape(8.dp)
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = ElectricLime,
+                                    contentColor = OnElectricLime
+                                ),
+                                shape = RoundedCornerShape(10.dp)
                             ) {
-                                Text("Entrar al Inventario", color = Color.Black, fontWeight = FontWeight.Bold)
+                                Text("Entrar al Inventario", fontWeight = FontWeight.Bold, fontSize = 15.sp)
                             }
 
-                            Spacer(modifier = Modifier.height(8.dp))
+                            Spacer(modifier = Modifier.height(10.dp))
 
                             OutlinedButton(
                                 onClick = {
@@ -236,229 +244,166 @@ fun LoginScreen(
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
+                                    .height(46.dp)
                                     .testTag("btn_change_account"),
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(10.dp),
+                                border = ButtonDefaults.outlinedButtonBorder.copy(
+                                    brush = androidx.compose.ui.graphics.SolidColor(GraphiteBorder)
+                                )
                             ) {
-                                Text("Cambiar de Cuenta", color = TextSecondary)
+                                Text("Cambiar de Cuenta", color = TextSecondary, fontWeight = FontWeight.Medium)
                             }
                         }
                     }
                 } else {
-                    var manualEmail by remember { mutableStateOf("") }
-                    var manualName by remember { mutableStateOf("") }
-
-                    // Direct Operator / Email Login Card
+                    // Intuitive Hero Google Sign In Card
                     Surface(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .clip(RoundedCornerShape(10.dp))
-                            .border(1.dp, GraphiteBorder, RoundedCornerShape(10.dp)),
+                            .clip(RoundedCornerShape(14.dp))
+                            .border(1.5.dp, GraphiteBorder, RoundedCornerShape(14.dp)),
                         color = GraphiteSurfaceVariant,
-                        shape = RoundedCornerShape(10.dp)
+                        shape = RoundedCornerShape(14.dp)
                     ) {
                         Column(
-                            modifier = Modifier.padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                            modifier = Modifier.padding(20.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
                             Text(
-                                text = "ACCESO DE OPERADOR / CORREO",
-                                style = MaterialTheme.typography.labelSmall,
+                                text = "ACCESO SEGURO CON GOOGLE",
+                                style = MaterialTheme.typography.labelMedium,
                                 color = ElectricLime,
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = 1.sp
                             )
 
-                            OutlinedTextField(
-                                value = manualEmail,
-                                onValueChange = { manualEmail = it },
-                                label = { Text("Correo electrónico") },
-                                placeholder = { Text("ejemplo@correo.com", color = TextMuted) },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(
-                                    keyboardType = KeyboardType.Email,
-                                    imeAction = ImeAction.Next
-                                ),
-                                modifier = Modifier.fillMaxWidth().testTag("input_manual_email"),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = ElectricLime,
-                                    unfocusedBorderColor = GraphiteBorder,
-                                    focusedTextColor = TextPrimary,
-                                    unfocusedTextColor = TextPrimary
-                                )
+                            Text(
+                                text = "Toca el botón para identificarte con tu cuenta Gmail. Tu acceso se validará y sincronizará en tiempo real.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary,
+                                textAlign = TextAlign.Center
                             )
 
-                            OutlinedTextField(
-                                value = manualName,
-                                onValueChange = { manualName = it },
-                                label = { Text("Nombre del Operador") },
-                                placeholder = { Text("Ej. Javier / Operador 1", color = TextMuted) },
-                                singleLine = true,
-                                keyboardOptions = KeyboardOptions(
-                                    keyboardType = KeyboardType.Text,
-                                    imeAction = ImeAction.Done
-                                ),
-                                modifier = Modifier.fillMaxWidth().testTag("input_manual_name"),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    focusedBorderColor = ElectricLime,
-                                    unfocusedBorderColor = GraphiteBorder,
-                                    focusedTextColor = TextPrimary,
-                                    unfocusedTextColor = TextPrimary
-                                )
-                            )
-
+                            // Google Sign In Button
                             Button(
                                 onClick = {
-                                    if (manualEmail.isNotBlank()) {
-                                        val session = UserSession(
-                                            uid = "user_" + manualEmail.trim().lowercase().replace(".", "_").replace("@", "_"),
-                                            email = manualEmail.trim().lowercase(),
-                                            displayName = manualName.ifBlank { "Operador" },
-                                            photoUrl = null
-                                        )
-                                        onLoginSuccess(session)
+                                    scope.launch {
+                                        isLoading = true
+                                        errorMessage = null
+                                        try {
+                                            val gmsStatus = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context)
+                                            if (gmsStatus != ConnectionResult.SUCCESS) {
+                                                errorMessage = "Google Play Services no está disponible en este dispositivo."
+                                                isLoading = false
+                                                return@launch
+                                            }
+
+                                            val credentialManager = CredentialManager.create(context)
+                                            val webClientId = context.getString(com.example.R.string.default_web_client_id)
+
+                                            val googleIdOption = GetGoogleIdOption.Builder()
+                                                .setFilterByAuthorizedAccounts(false)
+                                                .setServerClientId(webClientId)
+                                                .setAutoSelectEnabled(false)
+                                                .build()
+
+                                            val request = GetCredentialRequest.Builder()
+                                                .addCredentialOption(googleIdOption)
+                                                .build()
+
+                                            val result = credentialManager.getCredential(
+                                                request = request,
+                                                context = context
+                                            )
+
+                                            val credential = result.credential
+                                            if (credential is CustomCredential &&
+                                                credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                                            ) {
+                                                val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                                                val idToken = googleIdTokenCredential.idToken
+                                                val firebaseCredential = GoogleAuthProvider.getCredential(idToken, null)
+                                                val authResult = auth.signInWithCredential(firebaseCredential).await()
+                                                val firebaseUser = authResult.user
+
+                                                if (firebaseUser != null) {
+                                                    val session = UserSession(
+                                                        uid = firebaseUser.uid,
+                                                        email = firebaseUser.email ?: googleIdTokenCredential.id,
+                                                        displayName = firebaseUser.displayName ?: googleIdTokenCredential.displayName ?: "Operador",
+                                                        photoUrl = firebaseUser.photoUrl?.toString()
+                                                    )
+                                                    onLoginSuccess(session)
+                                                }
+                                            }
+                                        } catch (e: GetCredentialCancellationException) {
+                                            Log.d("LoginScreen", "Usuario canceló el selector de cuenta")
+                                        } catch (e: SecurityException) {
+                                            Log.w("LoginScreen", "Google Play Services SecurityException: ${e.message}")
+                                            errorMessage = "Google Play Services no disponible en este dispositivo."
+                                        } catch (t: Throwable) {
+                                            Log.w("LoginScreen", "Error Google Sign-In: ${t.message}")
+                                            errorMessage = "No se pudo iniciar sesión con Google: ${t.localizedMessage ?: "Error de autenticación"}"
+                                        } finally {
+                                            isLoading = false
+                                        }
                                     }
                                 },
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .height(46.dp)
-                                    .testTag("btn_manual_login_submit"),
-                                colors = ButtonDefaults.buttonColors(containerColor = ElectricLime),
-                                shape = RoundedCornerShape(8.dp),
-                                enabled = manualEmail.isNotBlank()
-                            ) {
-                                Text("Ingresar al Sistema", color = Color.Black, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.Center
-                    ) {
-                        Box(modifier = Modifier.weight(1f).height(1.dp).background(GraphiteBorder))
-                        Text(
-                            text = "  o con Google  ",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = TextMuted
-                        )
-                        Box(modifier = Modifier.weight(1f).height(1.dp).background(GraphiteBorder))
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    // Google Sign In Button via Credential Manager
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                isLoading = true
-                                errorMessage = null
-                                try {
-                                    val gmsStatus = GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(context)
-                                    if (gmsStatus != ConnectionResult.SUCCESS) {
-                                        errorMessage = "Google Play Services no disponible en este entorno. Ingresa tu correo o nombre arriba."
-                                        isLoading = false
-                                        return@launch
-                                    }
-
-                                    val credentialManager = CredentialManager.create(context)
-                                    val webClientId = context.getString(com.example.R.string.default_web_client_id)
-
-                                    val googleIdOption = GetGoogleIdOption.Builder()
-                                        .setFilterByAuthorizedAccounts(false)
-                                        .setServerClientId(webClientId)
-                                        .setAutoSelectEnabled(false)
-                                        .build()
-
-                                    val request = GetCredentialRequest.Builder()
-                                        .addCredentialOption(googleIdOption)
-                                        .build()
-
-                                    val result = credentialManager.getCredential(
-                                        request = request,
-                                        context = context
+                                    .height(52.dp)
+                                    .border(
+                                        width = 1.2.dp,
+                                        color = if (isDark) Color.Transparent else GraphiteBorder,
+                                        shape = RoundedCornerShape(12.dp)
                                     )
-
-                                    val credential = result.credential
-                                    if (credential is CustomCredential &&
-                                        credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                                    .testTag("btn_google_signin"),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (isDark) Color.White else Color(0xFF0F172A),
+                                    contentColor = if (isDark) Color(0xFF0F172A) else Color.White
+                                ),
+                                shape = RoundedCornerShape(12.dp),
+                                enabled = !isLoading
+                            ) {
+                                if (isLoading) {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(24.dp),
+                                        color = if (isDark) Color(0xFF0F172A) else Color.White,
+                                        strokeWidth = 2.5.dp
+                                    )
+                                } else {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
                                     ) {
-                                        val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
-                                        val idToken = googleIdTokenCredential.idToken
-                                        val firebaseCredential = GoogleAuthProvider.getCredential(idToken, null)
-                                        val authResult = auth.signInWithCredential(firebaseCredential).await()
-                                        val firebaseUser = authResult.user
-
-                                        if (firebaseUser != null) {
-                                            val session = UserSession(
-                                                uid = firebaseUser.uid,
-                                                email = firebaseUser.email ?: googleIdTokenCredential.id,
-                                                displayName = firebaseUser.displayName ?: googleIdTokenCredential.displayName ?: "Operador",
-                                                photoUrl = firebaseUser.photoUrl?.toString()
-                                            )
-                                            onLoginSuccess(session)
-                                        }
+                                        Icon(
+                                            imageVector = Icons.Default.AccountCircle,
+                                            contentDescription = null,
+                                            tint = if (isDark) Color(0xFF4285F4) else Color(0xFF38BDF8),
+                                            modifier = Modifier.size(24.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(10.dp))
+                                        Text(
+                                            text = "Continuar con Google",
+                                            color = if (isDark) Color(0xFF0F172A) else Color.White,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 15.sp
+                                        )
                                     }
-                                } catch (e: GetCredentialCancellationException) {
-                                    Log.d("LoginScreen", "Usuario canceló el selector de cuenta")
-                                } catch (e: SecurityException) {
-                                    Log.w("LoginScreen", "Google Play Services SecurityException: ${e.message}")
-                                    errorMessage = "Google Play Services no disponible en este dispositivo. Ingresa tus datos arriba."
-                                } catch (t: Throwable) {
-                                    Log.w("LoginScreen", "Error Google Sign-In: ${t.message}")
-                                    errorMessage = "Inicio con Google no disponible en este emulador. Ingresa tus datos arriba."
-                                } finally {
-                                    isLoading = false
                                 }
                             }
-                        },
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(46.dp)
-                            .testTag("btn_google_signin"),
-                        colors = ButtonDefaults.buttonColors(containerColor = Color.White),
-                        shape = RoundedCornerShape(8.dp),
-                        enabled = !isLoading
-                    ) {
-                        if (isLoading) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(22.dp),
-                                color = Color.Black,
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.Center
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.AccountCircle,
-                                    contentDescription = null,
-                                    tint = Color(0xFF4285F4),
-                                    modifier = Modifier.size(20.dp)
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
+
+                            if (errorMessage != null) {
                                 Text(
-                                    text = "Continuar con Google",
-                                    color = Color.Black,
-                                    fontWeight = FontWeight.Bold,
-                                    fontSize = 13.sp
+                                    text = errorMessage ?: "",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.error,
+                                    textAlign = TextAlign.Center,
+                                    fontSize = 12.sp
                                 )
                             }
                         }
-                    }
-
-                    if (errorMessage != null) {
-                        Spacer(modifier = Modifier.height(10.dp))
-                        Text(
-                            text = errorMessage ?: "",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.error,
-                            textAlign = TextAlign.Center,
-                            fontSize = 11.sp
-                        )
                     }
                 }
 

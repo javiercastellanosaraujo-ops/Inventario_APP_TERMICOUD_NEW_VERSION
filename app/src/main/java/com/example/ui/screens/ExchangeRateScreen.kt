@@ -2,6 +2,7 @@ package com.example.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,6 +20,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
+import androidx.compose.material.icons.filled.DarkMode
+import androidx.compose.material.icons.filled.LightMode
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
@@ -54,6 +58,7 @@ import com.example.ui.theme.GraphiteBorder
 import com.example.ui.theme.GraphiteSurface
 import com.example.ui.theme.GraphiteSurfaceVariant
 import com.example.ui.theme.MonoDataLarge
+import com.example.ui.theme.OnElectricLime
 import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
@@ -68,6 +73,8 @@ fun ExchangeRateScreen(
     tasaActualizada: String? = null,
     tasaUsuario: String? = null,
     isSyncing: Boolean,
+    isDarkMode: Boolean = false,
+    onSetDarkMode: (Boolean) -> Unit = {},
     onSaveExchangeRate: (Double) -> Unit,
     onRefreshTasa: () -> Unit = {},
     onSaveBackendUrl: (String) -> Unit = {},
@@ -264,11 +271,11 @@ fun ExchangeRateScreen(
                                 .testTag("btn_save_rate"),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = ElectricLime,
-                                contentColor = Color.Black
+                                contentColor = OnElectricLime
                             ),
                             shape = RoundedCornerShape(8.dp)
                         ) {
-                            Text("Guardar", fontWeight = FontWeight.Bold, color = Color.Black)
+                            Text("Guardar", fontWeight = FontWeight.Bold, color = OnElectricLime)
                         }
                     }
                 }
@@ -343,27 +350,27 @@ fun ExchangeRateScreen(
                             .testTag("btn_sync_firestore_settings"),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = ElectricLime,
-                            contentColor = Color.Black
+                            contentColor = OnElectricLime
                         ),
                         shape = RoundedCornerShape(8.dp)
                     ) {
                         if (isSyncing) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(18.dp),
-                                color = Color.Black,
+                                color = OnElectricLime,
                                 strokeWidth = 2.dp
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Sincronizando...", color = Color.Black, fontWeight = FontWeight.Bold)
+                            Text("Sincronizando...", color = OnElectricLime, fontWeight = FontWeight.Bold)
                         } else {
                             Icon(
                                 Icons.Default.Refresh,
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp),
-                                tint = Color.Black
+                                tint = OnElectricLime
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("Refrescar Datos de Firestore", color = Color.Black, fontWeight = FontWeight.Bold)
+                            Text("Refrescar Datos de Firestore", color = OnElectricLime, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -439,11 +446,11 @@ fun ExchangeRateScreen(
                                 .testTag("btn_save_backend_url"),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = ElectricLime,
-                                contentColor = Color.Black
+                                contentColor = OnElectricLime
                             ),
                             shape = RoundedCornerShape(8.dp)
                         ) {
-                            Text("Guardar URL", fontWeight = FontWeight.Bold, color = Color.Black)
+                            Text("Guardar URL", fontWeight = FontWeight.Bold, color = OnElectricLime)
                         }
 
                         if (backendUrlInput.isNotBlank()) {
@@ -458,10 +465,151 @@ fun ExchangeRateScreen(
                                 shape = RoundedCornerShape(8.dp),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = ElectricLime,
-                                    contentColor = Color.Black
+                                    contentColor = OnElectricLime
                                 )
                             ) {
-                                Text("Desconectar", fontWeight = FontWeight.Bold, color = Color.Black)
+                                Text("Desconectar", fontWeight = FontWeight.Bold, color = OnElectricLime)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // Section: Appearance & Theme (Light Azul Cielo vs Dark Grafito)
+        item {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, GraphiteBorder, RoundedCornerShape(10.dp)),
+                color = GraphiteSurface,
+                shape = RoundedCornerShape(10.dp)
+            ) {
+                Column(modifier = Modifier.padding(18.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Palette,
+                                contentDescription = null,
+                                tint = ElectricLime,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "APARIENCIA Y TEMA",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = TextSecondary,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.sp
+                            )
+                        }
+
+                        Text(
+                            text = if (isDarkMode) "Oscuro" else "Claro (Azul)",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = ElectricLime,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "Selecciona el tema visual de la aplicación. El modo claro está diseñado en Azul Cielo profesional.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary,
+                        fontSize = 12.sp
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        // Light Mode (Azul Cielo) Button
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .border(
+                                    width = if (!isDarkMode) 2.dp else 1.dp,
+                                    color = if (!isDarkMode) ElectricLime else GraphiteBorder,
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .clickable { onSetDarkMode(false) }
+                                .testTag("btn_theme_light"),
+                            color = if (!isDarkMode) ElectricLime.copy(alpha = 0.12f) else GraphiteSurfaceVariant,
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.LightMode,
+                                    contentDescription = null,
+                                    tint = if (!isDarkMode) ElectricLime else TextSecondary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Modo Claro",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (!isDarkMode) ElectricLime else TextPrimary
+                                )
+                                Text(
+                                    text = "Azul Cielo",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontSize = 10.sp,
+                                    color = TextSecondary
+                                )
+                            }
+                        }
+
+                        // Dark Mode (Grafito) Button
+                        Surface(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clip(RoundedCornerShape(8.dp))
+                                .border(
+                                    width = if (isDarkMode) 2.dp else 1.dp,
+                                    color = if (isDarkMode) ElectricLime else GraphiteBorder,
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .clickable { onSetDarkMode(true) }
+                                .testTag("btn_theme_dark"),
+                            color = if (isDarkMode) ElectricLime.copy(alpha = 0.12f) else GraphiteSurfaceVariant,
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier.padding(12.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.DarkMode,
+                                    contentDescription = null,
+                                    tint = if (isDarkMode) ElectricLime else TextSecondary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                                Spacer(modifier = Modifier.height(6.dp))
+                                Text(
+                                    text = "Modo Oscuro",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (isDarkMode) ElectricLime else TextPrimary
+                                )
+                                Text(
+                                    text = "Grafito",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontSize = 10.sp,
+                                    color = TextSecondary
+                                )
                             }
                         }
                     }
@@ -523,17 +671,17 @@ fun ExchangeRateScreen(
                         shape = RoundedCornerShape(8.dp),
                         colors = ButtonDefaults.buttonColors(
                             containerColor = ElectricLime,
-                            contentColor = Color.Black
+                            contentColor = OnElectricLime
                         )
                     ) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ExitToApp,
                             contentDescription = null,
-                            tint = Color.Black,
+                            tint = OnElectricLime,
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("Cerrar Sesión", color = Color.Black, fontWeight = FontWeight.Bold)
+                        Text("Cerrar Sesión", color = OnElectricLime, fontWeight = FontWeight.Bold)
                     }
                 }
             }

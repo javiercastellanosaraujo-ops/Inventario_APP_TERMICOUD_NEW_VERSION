@@ -99,6 +99,15 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
     val exchangeRate: StateFlow<Double> = preferencesRepo.exchangeRate
     val isUserSelected: StateFlow<Boolean> = preferencesRepo.isUserSelected
     val backendUrl: StateFlow<String> = preferencesRepo.backendUrl
+    val isDarkMode: StateFlow<Boolean> = preferencesRepo.isDarkMode
+
+    fun toggleDarkMode() {
+        preferencesRepo.toggleDarkMode()
+    }
+
+    fun setDarkMode(enabled: Boolean) {
+        preferencesRepo.setDarkMode(enabled)
+    }
 
     private val _tasaActualizada = MutableStateFlow<String?>(null)
     val tasaActualizada: StateFlow<String?> = _tasaActualizada.asStateFlow()
