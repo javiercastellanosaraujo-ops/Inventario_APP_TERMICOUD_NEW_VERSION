@@ -3,6 +3,7 @@ package com.example.ui.screens
 import android.app.Activity
 import android.util.Log
 import android.widget.Toast
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -14,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -45,6 +47,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -112,6 +116,22 @@ fun LoginScreen(
             .padding(20.dp),
         contentAlignment = Alignment.Center
     ) {
+        // Grid pattern background
+        Canvas(modifier = Modifier.matchParentSize()) {
+            val step = 24.dp.toPx()
+            val lineColor = if (isDark) Color.White.copy(alpha = 0.025f) else Color(0xFF1A1A1A).copy(alpha = 0.035f)
+            var x = 0f
+            while (x < size.width) {
+                drawLine(lineColor, Offset(x, 0f), Offset(x, size.height), strokeWidth = 1f)
+                x += step
+            }
+            var y = 0f
+            while (y < size.height) {
+                drawLine(lineColor, Offset(0f, y), Offset(size.width, y), strokeWidth = 1f)
+                y += step
+            }
+        }
+
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
@@ -120,13 +140,35 @@ fun LoginScreen(
             color = GraphiteSurface,
             shadowElevation = if (isDark) 0.dp else 4.dp
         ) {
-            Column(
+            Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.Center
+                    .clip(RoundedCornerShape(20.dp))
             ) {
+                // Subtle radial accent glow behind top logo
+                Box(
+                    modifier = Modifier
+                        .size(220.dp)
+                        .align(Alignment.TopCenter)
+                        .offset(y = (-60).dp)
+                        .background(
+                            brush = Brush.radialGradient(
+                                colors = listOf(
+                                    ElectricLime.copy(alpha = 0.18f),
+                                    Color.Transparent
+                                )
+                            ),
+                            shape = CircleShape
+                        )
+                )
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
                 // App Logo / Badge
                 Box(
                     modifier = Modifier
@@ -377,11 +419,10 @@ fun LoginScreen(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.Center
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.AccountCircle,
+                                        Image(
+                                            painter = painterResource(id = R.drawable.ic_google_logo),
                                             contentDescription = null,
-                                            tint = if (isDark) Color(0xFF4285F4) else Color(0xFF38BDF8),
-                                            modifier = Modifier.size(24.dp)
+                                            modifier = Modifier.size(20.dp)
                                         )
                                         Spacer(modifier = Modifier.width(10.dp))
                                         Text(
@@ -424,4 +465,5 @@ fun LoginScreen(
             }
         }
     }
+}
 }

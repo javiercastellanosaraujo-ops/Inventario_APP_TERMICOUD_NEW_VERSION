@@ -257,7 +257,7 @@ fun BrandSplashScreen(
                     .clickable { triggerFinish() },
                 shape = RoundedCornerShape(20.dp),
                 color = Color.Black.copy(alpha = 0.55f),
-                border = androidx.compose.foundation.BorderStroke(1.dp, GraphiteBorder)
+                border = androidx.compose.foundation.BorderStroke(1.dp, Color.White.copy(alpha = 0.3f))
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp),
@@ -266,14 +266,14 @@ fun BrandSplashScreen(
                     Text(
                         text = "Saltar",
                         style = MaterialTheme.typography.labelMedium.copy(fontSize = 12.sp),
-                        color = TextPrimary,
+                        color = Color.White,
                         fontWeight = FontWeight.SemiBold
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowForward,
                         contentDescription = "Saltar",
-                        tint = ElectricLime,
+                        tint = Color.White,
                         modifier = Modifier.size(14.dp)
                     )
                 }
@@ -311,7 +311,7 @@ fun BrandSplashScreen(
                         fontSize = 28.sp,
                         letterSpacing = 3.sp
                     ),
-                    color = TextPrimary,
+                    color = Color.White,
                     fontWeight = FontWeight.Black,
                     textAlign = TextAlign.Center
                 )
@@ -334,7 +334,7 @@ fun BrandSplashScreen(
                 Text(
                     text = AppConfig.APP_SUBTITLE,
                     style = MaterialTheme.typography.bodySmall,
-                    color = TextMuted,
+                    color = Color.White.copy(alpha = 0.7f),
                     textAlign = TextAlign.Center
                 )
             }

@@ -21,7 +21,7 @@ private val DarkM3ColorScheme = darkColorScheme(
     surfaceVariant = DarkTermicoudColors.surfaceVariant,
     onSurfaceVariant = DarkTermicoudColors.textSecondary,
     outline = DarkTermicoudColors.border,
-    outlineVariant = Color(0xFF1E2B3E),
+    outlineVariant = DarkTermicoudColors.surfaceVariant,
     error = DarkTermicoudColors.dangerRed,
     onError = Color.White
 )
@@ -40,7 +40,7 @@ private val LightM3ColorScheme = lightColorScheme(
     surfaceVariant = LightTermicoudColors.surfaceVariant,
     onSurfaceVariant = LightTermicoudColors.textSecondary,
     outline = LightTermicoudColors.border,
-    outlineVariant = Color(0xFFE2E8F0),
+    outlineVariant = LightTermicoudColors.surfaceVariant,
     error = LightTermicoudColors.dangerRed,
     onError = Color.White
 )

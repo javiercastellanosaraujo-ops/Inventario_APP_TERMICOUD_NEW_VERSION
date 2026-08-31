@@ -35,63 +35,63 @@ data class TermicoudColors(
     val isDark: Boolean
 )
 
-// Dark Sky Blue & Slate Obsidian Palette
+// Dark Graphite & Blue Palette
 val DarkTermicoudColors = TermicoudColors(
-    primary = Color(0xFF38BDF8), // Vibrant Sky Blue 400
-    primaryDim = Color(0xFF0284C7), // Deep Sky Blue 600
-    primaryContainer = Color(0xFF0C2B42), // Deep Sky Slate Container
-    onPrimaryContainer = Color(0xFFBAE6FD), // Sky Blue 200
-    onPrimary = Color(0xFF04192B), // Deep Slate Navy for high contrast on Sky 400
-    secondary = Color(0xFF7DD3FC), // Sky Blue 300 Accent
-    background = Color(0xFF0B111A), // Deep Slate Obsidian Canvas
-    surface = Color(0xFF131D2D), // Sleek Modern Slate Card Surface
-    surfaceVariant = Color(0xFF1B273C), // Elevated Container / Inputs / Chips
-    border = Color(0xFF2B3C54), // Crisp Slate Border (Visible, framed)
-    borderFocused = Color(0xFF38BDF8),
-    textPrimary = Color(0xFFF8FAFC), // Slate 50 (Crisp, High Legibility)
-    textSecondary = Color(0xFF94A3B8), // Cool Slate 400
-    textMuted = Color(0xFF64748B), // Slate 500
-    statusAgotado = Color(0xFFFB7185), // Rose 400
+    primary = Color(0xFF3DA9FF),
+    primaryDim = Color(0xFF1E7FD9),
+    primaryContainer = Color(0xFF0D2A44),
+    onPrimaryContainer = Color(0xFFB8E0FF),
+    onPrimary = Color(0xFF04182A),
+    secondary = Color(0xFF7DD3FC),
+    background = Color(0xFF141414),        // Grafito casi negro
+    surface = Color(0xFF1E1E1E),
+    surfaceVariant = Color(0xFF282828),
+    border = Color(0xFF383838),
+    borderFocused = Color(0xFF3DA9FF),
+    textPrimary = Color(0xFFF5F5F5),
+    textSecondary = Color(0xFFB0B0B0),
+    textMuted = Color(0xFF808080),
+    statusAgotado = Color(0xFFFB7185),
     statusAgotadoBg = Color(0xFF38141F),
-    statusBajo = Color(0xFFFBBF24), // Amber 400
+    statusBajo = Color(0xFFFBBF24),
     statusBajoBg = Color(0xFF38290E),
-    statusOk = Color(0xFF34D399), // Emerald 400
+    statusOk = Color(0xFF34D399),
     statusOkBg = Color(0xFF063324),
     warningAmber = Color(0xFFFBBF24),
     warningAmberBg = Color(0xFF38290E),
     dangerRed = Color(0xFFFB7185),
     alertRed = Color(0xFFFB7185),
-    cardHighlight = Color(0xFF17263C),
+    cardHighlight = Color(0xFF102A40),
     isDark = true
 )
 
-// Light Sky Blue & Modern Slate Palette
+// Light Warm Neutral & Blue Palette
 val LightTermicoudColors = TermicoudColors(
-    primary = Color(0xFF0284C7), // Vibrant Sky Blue 600
-    primaryDim = Color(0xFF0369A1), // Deep Ocean Sky 700
-    primaryContainer = Color(0xFFE0F2FE), // Ice Sky 100
-    onPrimaryContainer = Color(0xFF0369A1), // Sky 700
-    onPrimary = Color(0xFFFFFFFF), // Pure White on Sky Blue 600
-    secondary = Color(0xFF0EA5E9), // Sky Blue 500
-    background = Color(0xFFF1F5F9), // Slate 100 Canvas (clear contrast against white cards)
-    surface = Color(0xFFFFFFFF), // Pure White Cards & Modals
-    surfaceVariant = Color(0xFFF8FAFC), // Soft Slate 50 Containers / Inputs
-    border = Color(0xFFCBD5E1), // Crisp Slate 300 Border (Crisp framed boundaries)
-    borderFocused = Color(0xFF0284C7),
-    textPrimary = Color(0xFF0F172A), // Slate 900 (High Contrast)
-    textSecondary = Color(0xFF334155), // Slate 700
-    textMuted = Color(0xFF64748B), // Slate 500
-    statusAgotado = Color(0xFFDC2626), // Ruby Red 600
-    statusAgotadoBg = Color(0xFFFEE2E2), // Soft Pink Red 100
-    statusBajo = Color(0xFFD97706), // Amber Gold 600
-    statusBajoBg = Color(0xFFFEF3C7), // Soft Amber Gold 100
-    statusOk = Color(0xFF059669), // Emerald Green 600
-    statusOkBg = Color(0xFFECFDF5), // Soft Emerald Pastel 50
+    primary = Color(0xFF0B6FB8),
+    primaryDim = Color(0xFF085688),
+    primaryContainer = Color(0xFF3DA9FF),
+    onPrimaryContainer = Color(0xFFFFFFFF),
+    onPrimary = Color(0xFFFFFFFF),
+    secondary = Color(0xFF1E88C7),
+    background = Color(0xFFE7E7E3),        // Gris suave, ya no blanco
+    surface = Color(0xFFF1F1ED),           // Un poco más claro que el fondo, para que las tarjetas se distingan
+    surfaceVariant = Color(0xFFDDDDD7),
+    border = Color(0xFFAAAAA2),            // Bastante más oscuro/visible que antes
+    borderFocused = Color(0xFF0B6FB8),
+    textPrimary = Color(0xFF1A1A1A),
+    textSecondary = Color(0xFF4A4A4A),
+    textMuted = Color(0xFF757575),
+    statusAgotado = Color(0xFFDC2626),
+    statusAgotadoBg = Color(0xFFFEE2E2),
+    statusBajo = Color(0xFFD97706),
+    statusBajoBg = Color(0xFFFEF3C7),
+    statusOk = Color(0xFF059669),
+    statusOkBg = Color(0xFFECFDF5),
     warningAmber = Color(0xFFD97706),
     warningAmberBg = Color(0xFFFEF3C7),
     dangerRed = Color(0xFFDC2626),
     alertRed = Color(0xFFDC2626),
-    cardHighlight = Color(0xFFF0F9FF), // Sky 50
+    cardHighlight = Color(0xFFDCEEFC),
     isDark = false
 )
 
