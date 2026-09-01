@@ -6,10 +6,15 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -269,140 +274,170 @@ fun TermicoudApp(viewModel: InventoryViewModel = viewModel()) {
                                 onBackClick = { showingQuickScanScreen = false }
                             )
                         } else {
-                            when (selectedTab) {
-                                0 -> DashboardScreen(
-                                    activeUser = currentUser?.displayName?.ifBlank { activeUser } ?: activeUser,
-                                    currentUserEmail = currentUser?.email ?: "",
-                                    exchangeRate = exchangeRate,
-                                    products = products,
-                                    categoriesCount = (categories.size - 1).coerceAtLeast(1),
-                                    salesHistory = salesHistory,
-                                    isSyncing = isSyncing,
-                                    isAdmin = isCurrentUserAdmin,
-                                    pendingUsersCount = allUsers.count { it.estado.equals("pendiente", ignoreCase = true) },
-                                    isDarkMode = isDarkMode,
-                                    onToggleDarkMode = { viewModel.toggleDarkMode() },
-                                    onNavigateToTab = { tab -> viewModel.selectTab(tab) },
-                                    onUpdateProfile = { newName, newEmail ->
-                                        viewModel.updateUserProfile(newName, newEmail)
-                                    },
-                                    onSignOut = { viewModel.signOut() },
-                                    onOpenUserManagement = if (isCurrentUserAdmin) { { showingUserMgmtScreen = true } } else null,
-                                    onOpenQuickScan = { showingQuickScanScreen = true },
-                                    onSyncClick = { viewModel.syncFromRemote() },
-                                    onViewFullHistory = { showingFullHistoryScreen = true }
-                                )
-
-                                1 -> InventoryScreen(
-                                    products = filteredProducts,
-                                    categories = categories,
-                                    selectedCategory = selectedCategory,
-                                    stockFilter = stockFilter,
-                                    searchQuery = searchQuery,
-                                    exchangeRate = exchangeRate,
-                                    isSyncing = isSyncing,
-                                    isRenamingCategory = isMergingCatalog,
-                                    onSearchQueryChange = { viewModel.setSearchQuery(it) },
-                                    onCategorySelect = { viewModel.setCategory(it) },
-                                    onStockFilterSelect = { viewModel.setStockFilter(it) },
-                                    onRenameCategory = { viejo, nuevo -> viewModel.fusionarCatalogo(viejo, nuevo) },
-                                    onProductClick = { viewModel.openProductBottomSheet(it) },
-                                    onQuickAddToCart = {
-                                        viewModel.addToCart(it, 1)
-                                        viewModel.selectTab(2) // Jump to Salida tab
-                                    },
-                                    onRefresh = { viewModel.syncInventoryCatalog() }
-                                )
-
-                                2 -> SaleScreen(
-                                    products = products,
-                                    combos = combos,
-                                    cart = cart,
-                                    exchangeRate = exchangeRate,
-                                    searchQuery = searchQuery,
-                                    isSyncing = isSyncing,
-                                    onSearchQueryChange = { viewModel.setSearchQuery(it) },
-                                    onAddToCart = { prod, qty, mode -> viewModel.addToCart(prod, qty, mode) },
-                                    onAddComboToCart = { combo, qty -> viewModel.addComboToCart(combo, qty) },
-                                    onUpdateCartQuantity = { fila, qty -> viewModel.updateCartQuantity(fila, qty) },
-                                    onUpdateCartPriceMode = { fila, mode -> viewModel.updateCartItemPriceMode(fila, mode) },
-                                    onRemoveFromCart = { fila -> viewModel.removeFromCart(fila) },
-                                    onClearCart = { viewModel.clearCart() },
-                                    onConfirmSale = { viewModel.confirmSale() },
-                                    onOpenQuickScan = { showingQuickScanScreen = true }
-                                )
-
-                                3 -> StockEntryScreen(
-                                    products = products,
-                                    categories = categories,
-                                    onAddStockToExisting = { prod, qty -> viewModel.addStockToProduct(prod, qty) },
-                                    onCreateNewProduct = { name, qty, price, cat, barcode, precioMayor, cantMinima, precioCompra ->
-                                        viewModel.createNewProduct(name, qty, price, cat, barcode, precioMayor, cantMinima, precioCompra)
-                                    },
-                                    onOpenQuickScan = { showingQuickScanScreen = true }
-                                )
-
-                                4 -> com.example.ui.screens.CombosScreen(
-                                    combos = combos,
-                                    products = products,
-                                    exchangeRate = exchangeRate,
-                                    isLoading = isSyncing,
-                                    isAdmin = isCurrentUserAdmin,
-                                    onRefresh = {
-                                        viewModel.fetchCombos()
-                                    },
-                                    onAddComboToCart = { combo, qty ->
-                                        viewModel.addComboToCart(combo, qty)
-                                        viewModel.selectTab(2) // Jump to Salida
-                                    },
-                                    onCreateCombo = { nombre, precioUsd, categoria, componentes, onSuccess ->
-                                        viewModel.crearCombo(nombre, precioUsd, categoria, componentes, onSuccess)
-                                    },
-                                    onDeleteCombo = { combo ->
-                                        viewModel.eliminarCombo(combo)
-                                    }
-                                )
-
-                                5 -> {
-                                    if (isCurrentUserAdmin) {
-                                        GananciasScreen(
-                                            gananciasActuales = gananciasActuales,
-                                            historialMeses = historialMeses,
-                                            gananciasMesArchivado = gananciasMesArchivado,
-                                            selectedArchivedMonth = selectedArchivedMonth,
-                                            salesHistory = salesHistory,
-                                            exchangeRate = exchangeRate,
-                                            isLoading = isLoadingGanancias,
-                                            onRefresh = {
-                                                viewModel.fetchGanancias()
-                                                viewModel.fetchHistorialMeses()
-                                            },
-                                            onSelectArchivedMonth = { mesKey -> viewModel.selectArchivedMonth(mesKey) },
-                                            onClearSelectedArchivedMonth = { viewModel.clearSelectedArchivedMonth() }
-                                        )
+                            AnimatedContent(
+                                targetState = selectedTab,
+                                transitionSpec = {
+                                    if (targetState > initialState) {
+                                        (slideInHorizontally(
+                                            animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
+                                            initialOffsetX = { fullWidth -> (fullWidth * 0.12f).toInt() }
+                                        ) + fadeIn(animationSpec = tween(200)))
+                                            .togetherWith(
+                                                slideOutHorizontally(
+                                                    animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+                                                    targetOffsetX = { fullWidth -> (-fullWidth * 0.12f).toInt() }
+                                                ) + fadeOut(animationSpec = tween(160))
+                                            )
                                     } else {
-                                        androidx.compose.runtime.LaunchedEffect(Unit) {
-                                            viewModel.selectTab(0)
+                                        (slideInHorizontally(
+                                            animationSpec = tween(durationMillis = 240, easing = FastOutSlowInEasing),
+                                            initialOffsetX = { fullWidth -> (-fullWidth * 0.12f).toInt() }
+                                        ) + fadeIn(animationSpec = tween(200)))
+                                            .togetherWith(
+                                                slideOutHorizontally(
+                                                    animationSpec = tween(durationMillis = 200, easing = FastOutSlowInEasing),
+                                                    targetOffsetX = { fullWidth -> (fullWidth * 0.12f).toInt() }
+                                                ) + fadeOut(animationSpec = tween(160))
+                                            )
+                                    }
+                                },
+                                label = "InventoryDashboardSectionTransition"
+                            ) { targetTab ->
+                                when (targetTab) {
+                                    0 -> DashboardScreen(
+                                        activeUser = currentUser?.displayName?.ifBlank { activeUser } ?: activeUser,
+                                        currentUserEmail = currentUser?.email ?: "",
+                                        exchangeRate = exchangeRate,
+                                        products = products,
+                                        categoriesCount = (categories.size - 1).coerceAtLeast(1),
+                                        salesHistory = salesHistory,
+                                        isSyncing = isSyncing,
+                                        isAdmin = isCurrentUserAdmin,
+                                        pendingUsersCount = allUsers.count { it.estado.equals("pendiente", ignoreCase = true) },
+                                        isDarkMode = isDarkMode,
+                                        onToggleDarkMode = { viewModel.toggleDarkMode() },
+                                        onNavigateToTab = { tab -> viewModel.selectTab(tab) },
+                                        onUpdateProfile = { newName, newEmail ->
+                                            viewModel.updateUserProfile(newName, newEmail)
+                                        },
+                                        onSignOut = { viewModel.signOut() },
+                                        onOpenUserManagement = if (isCurrentUserAdmin) { { showingUserMgmtScreen = true } } else null,
+                                        onOpenQuickScan = { showingQuickScanScreen = true },
+                                        onSyncClick = { viewModel.syncFromRemote() },
+                                        onViewFullHistory = { showingFullHistoryScreen = true }
+                                    )
+
+                                    1 -> InventoryScreen(
+                                        products = filteredProducts,
+                                        categories = categories,
+                                        selectedCategory = selectedCategory,
+                                        stockFilter = stockFilter,
+                                        searchQuery = searchQuery,
+                                        exchangeRate = exchangeRate,
+                                        isSyncing = isSyncing,
+                                        isRenamingCategory = isMergingCatalog,
+                                        onSearchQueryChange = { viewModel.setSearchQuery(it) },
+                                        onCategorySelect = { viewModel.setCategory(it) },
+                                        onStockFilterSelect = { viewModel.setStockFilter(it) },
+                                        onRenameCategory = { viejo, nuevo -> viewModel.fusionarCatalogo(viejo, nuevo) },
+                                        onProductClick = { viewModel.openProductBottomSheet(it) },
+                                        onQuickAddToCart = {
+                                            viewModel.addToCart(it, 1)
+                                            viewModel.selectTab(2) // Jump to Salida tab
+                                        },
+                                        onRefresh = { viewModel.syncInventoryCatalog() }
+                                    )
+
+                                    2 -> SaleScreen(
+                                        products = products,
+                                        combos = combos,
+                                        cart = cart,
+                                        exchangeRate = exchangeRate,
+                                        searchQuery = searchQuery,
+                                        isSyncing = isSyncing,
+                                        onSearchQueryChange = { viewModel.setSearchQuery(it) },
+                                        onAddToCart = { prod, qty, mode -> viewModel.addToCart(prod, qty, mode) },
+                                        onAddComboToCart = { combo, qty -> viewModel.addComboToCart(combo, qty) },
+                                        onUpdateCartQuantity = { fila, qty -> viewModel.updateCartQuantity(fila, qty) },
+                                        onUpdateCartPriceMode = { fila, mode -> viewModel.updateCartItemPriceMode(fila, mode) },
+                                        onRemoveFromCart = { fila -> viewModel.removeFromCart(fila) },
+                                        onClearCart = { viewModel.clearCart() },
+                                        onConfirmSale = { viewModel.confirmSale() },
+                                        onOpenQuickScan = { showingQuickScanScreen = true }
+                                    )
+
+                                    3 -> StockEntryScreen(
+                                        products = products,
+                                        categories = categories,
+                                        onAddStockToExisting = { prod, qty -> viewModel.addStockToProduct(prod, qty) },
+                                        onCreateNewProduct = { name, qty, price, cat, barcode, precioMayor, cantMinima, precioCompra ->
+                                            viewModel.createNewProduct(name, qty, price, cat, barcode, precioMayor, cantMinima, precioCompra)
+                                        },
+                                        onOpenQuickScan = { showingQuickScanScreen = true }
+                                    )
+
+                                    4 -> com.example.ui.screens.CombosScreen(
+                                        combos = combos,
+                                        products = products,
+                                        exchangeRate = exchangeRate,
+                                        isLoading = isSyncing,
+                                        isAdmin = isCurrentUserAdmin,
+                                        onRefresh = {
+                                            viewModel.fetchCombos()
+                                        },
+                                        onAddComboToCart = { combo, qty ->
+                                            viewModel.addComboToCart(combo, qty)
+                                            viewModel.selectTab(2) // Jump to Salida
+                                        },
+                                        onCreateCombo = { nombre, precioUsd, categoria, componentes, onSuccess ->
+                                            viewModel.crearCombo(nombre, precioUsd, categoria, componentes, onSuccess)
+                                        },
+                                        onDeleteCombo = { combo ->
+                                            viewModel.eliminarCombo(combo)
+                                        }
+                                    )
+
+                                    5 -> {
+                                        if (isCurrentUserAdmin) {
+                                            GananciasScreen(
+                                                gananciasActuales = gananciasActuales,
+                                                historialMeses = historialMeses,
+                                                gananciasMesArchivado = gananciasMesArchivado,
+                                                selectedArchivedMonth = selectedArchivedMonth,
+                                                salesHistory = salesHistory,
+                                                exchangeRate = exchangeRate,
+                                                isLoading = isLoadingGanancias,
+                                                onRefresh = {
+                                                    viewModel.fetchGanancias()
+                                                    viewModel.fetchHistorialMeses()
+                                                },
+                                                onSelectArchivedMonth = { mesKey -> viewModel.selectArchivedMonth(mesKey) },
+                                                onClearSelectedArchivedMonth = { viewModel.clearSelectedArchivedMonth() }
+                                            )
+                                        } else {
+                                            androidx.compose.runtime.LaunchedEffect(Unit) {
+                                                viewModel.selectTab(0)
+                                            }
                                         }
                                     }
-                                }
 
-                                6 -> ExchangeRateScreen(
-                                    exchangeRate = exchangeRate,
-                                    activeUser = currentUser?.displayName?.ifBlank { activeUser } ?: activeUser,
-                                    userEmail = currentUser?.email ?: "",
-                                    backendUrl = backendUrl,
-                                    isSyncing = isSyncing,
-                                    tasaActualizada = tasaActualizada,
-                                    tasaUsuario = tasaUsuario,
-                                    isDarkMode = isDarkMode,
-                                    onSetDarkMode = { viewModel.setDarkMode(it) },
-                                    onRefreshTasa = { viewModel.fetchExchangeRateFromBackend() },
-                                    onSaveExchangeRate = { viewModel.setExchangeRate(it) },
-                                    onSaveBackendUrl = { viewModel.setBackendUrl(it) },
-                                    onSyncAll = { viewModel.syncFromRemote() },
-                                    onSignOut = { viewModel.signOut() }
-                                )
+                                    6 -> ExchangeRateScreen(
+                                        exchangeRate = exchangeRate,
+                                        activeUser = currentUser?.displayName?.ifBlank { activeUser } ?: activeUser,
+                                        userEmail = currentUser?.email ?: "",
+                                        backendUrl = backendUrl,
+                                        isSyncing = isSyncing,
+                                        tasaActualizada = tasaActualizada,
+                                        tasaUsuario = tasaUsuario,
+                                        isDarkMode = isDarkMode,
+                                        onSetDarkMode = { viewModel.setDarkMode(it) },
+                                        onRefreshTasa = { viewModel.fetchExchangeRateFromBackend() },
+                                        onSaveExchangeRate = { viewModel.setExchangeRate(it) },
+                                        onSaveBackendUrl = { viewModel.setBackendUrl(it) },
+                                        onSyncAll = { viewModel.syncFromRemote() },
+                                        onSignOut = { viewModel.signOut() }
+                                    )
+                                }
                             }
                         }
 
