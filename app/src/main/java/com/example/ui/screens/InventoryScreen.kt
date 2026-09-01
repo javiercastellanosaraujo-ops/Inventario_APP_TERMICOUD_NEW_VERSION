@@ -323,7 +323,10 @@ fun InventoryScreen(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(categories) { category ->
+            items(
+                items = categories,
+                key = { it }
+            ) { category ->
                 val isSelected = category.trim().equals(selectedCategory.trim(), ignoreCase = true)
                 val isTodos = category.trim().equals("Todos", ignoreCase = true)
                 val bgColor = if (isSelected) ElectricLime else GraphiteSurface

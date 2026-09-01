@@ -816,7 +816,10 @@ fun GananciasScreen(
                         )
                     }
                 } else {
-                    items(historialMeses) { mesKey ->
+                    items(
+                        items = historialMeses,
+                        key = { it }
+                    ) { mesKey ->
                         ArchivedMonthCard(
                             mesKey = mesKey,
                             onClick = { onSelectArchivedMonth(mesKey) }
@@ -1462,7 +1465,10 @@ private fun LazyListScope.renderGananciasItems(
                 )
             }
         } else {
-            items(sales) { sale ->
+            items(
+                items = sales,
+                key = { it.id.ifBlank { "${it.timestamp}_${it.usuario}" } }
+            ) { sale ->
                 SaleTicketCompactCard(sale = sale)
             }
         }
