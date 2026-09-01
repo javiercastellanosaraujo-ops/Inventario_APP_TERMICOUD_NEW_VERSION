@@ -1,10 +1,13 @@
 package com.example
 
+import android.app.Activity
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -75,6 +78,7 @@ import com.example.ui.theme.GraphiteSurface
 import com.example.ui.theme.TermicoudTheme
 import com.example.ui.theme.TextPrimary
 import com.example.ui.viewmodel.InventoryViewModel
+import com.example.util.GoogleDriveAuthHelper
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -135,6 +139,7 @@ fun TermicoudApp(viewModel: InventoryViewModel = viewModel()) {
     val gananciasMesArchivado by viewModel.gananciasMesArchivado.collectAsStateWithLifecycle()
     val selectedArchivedMonth by viewModel.selectedArchivedMonth.collectAsStateWithLifecycle()
     val isLoadingGanancias by viewModel.isLoadingGanancias.collectAsStateWithLifecycle()
+    val isClosingMonth by viewModel.isClosingMonth.collectAsStateWithLifecycle()
     val backendUrl by viewModel.backendUrl.collectAsStateWithLifecycle()
 
     val bottomSheetProduct by viewModel.selectedProductForBottomSheet.collectAsStateWithLifecycle()
@@ -145,6 +150,15 @@ fun TermicoudApp(viewModel: InventoryViewModel = viewModel()) {
     var showingQuickScanScreen by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
+    val activity = context as? Activity
+
+    val driveAuthLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartIntentSenderForResult()
+    ) { result ->
+        activity?.let {
+            GoogleDriveAuthHelper.onActivityResult(it, result)
+        }
+    }
 
     // Guard: Redirect non-admin away from Ganancias tab (5) if navigated there
     LaunchedEffect(isCurrentUserAdmin, selectedTab) {
@@ -407,12 +421,20 @@ fun TermicoudApp(viewModel: InventoryViewModel = viewModel()) {
                                                 salesHistory = salesHistory,
                                                 exchangeRate = exchangeRate,
                                                 isLoading = isLoadingGanancias,
+                                                isClosingMonth = isClosingMonth,
                                                 onRefresh = {
                                                     viewModel.fetchGanancias()
                                                     viewModel.fetchHistorialMeses()
                                                 },
                                                 onSelectArchivedMonth = { mesKey -> viewModel.selectArchivedMonth(mesKey) },
-                                                onClearSelectedArchivedMonth = { viewModel.clearSelectedArchivedMonth() }
+                                                onClearSelectedArchivedMonth = { viewModel.clearSelectedArchivedMonth() },
+                                                onCerrarMes = {
+                                                    activity?.let { act ->
+                                                        viewModel.cerrarMesActual(act) { intentSenderReq ->
+                                                            driveAuthLauncher.launch(intentSenderReq)
+                                                        }
+                                                    }
+                                                }
                                             )
                                         } else {
                                             androidx.compose.runtime.LaunchedEffect(Unit) {

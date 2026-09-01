@@ -37,6 +37,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.TrendingUp
 import androidx.compose.material.icons.filled.CalendarMonth
 import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.CloudUpload
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -140,9 +141,11 @@ fun GananciasScreen(
     salesHistory: List<Sale> = emptyList(),
     exchangeRate: Double = 1.0,
     isLoading: Boolean,
+    isClosingMonth: Boolean = false,
     onRefresh: () -> Unit,
     onSelectArchivedMonth: (String) -> Unit,
-    onClearSelectedArchivedMonth: () -> Unit
+    onClearSelectedArchivedMonth: () -> Unit,
+    onCerrarMes: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -155,6 +158,7 @@ fun GananciasScreen(
     var sortByUnits by remember { mutableStateOf(false) }
 
     var showExportDialog by remember { mutableStateOf(false) }
+    var showCerrarMesDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         onRefresh()
@@ -433,6 +437,84 @@ fun GananciasScreen(
         )
     }
 
+    // Confirmation Dialog for Cerrar Mes
+    if (showCerrarMesDialog) {
+        AlertDialog(
+            onDismissRequest = { if (!isClosingMonth) showCerrarMesDialog = false },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.CloudUpload,
+                        contentDescription = null,
+                        tint = ElectricLime,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Cerrar mes y respaldar",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = TextPrimary
+                    )
+                }
+            },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        text = "Esta acción realizará el cierre del periodo actual ($activePeriodLabel):",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = TextPrimary
+                    )
+                    Text(
+                        text = "• Genera el reporte CSV con el resumen de ganancias y el detalle de ventas.\n" +
+                               "• Sube el archivo automáticamente a tu Google Drive (carpeta 'Termicoud - Cierres Mensuales').\n" +
+                               "• Guarda un resumen permanente en el historial del sistema.\n" +
+                               "• Borra las ventas del mes para iniciar en limpio el nuevo periodo.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = TextSecondary,
+                        lineHeight = 18.sp
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "⚠️ Esta acción no se puede deshacer. ¿Deseas continuar?",
+                        style = MaterialTheme.typography.bodySmall,
+                        fontWeight = FontWeight.Bold,
+                        color = WarningAmber
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showCerrarMesDialog = false
+                        onCerrarMes()
+                    },
+                    enabled = !isClosingMonth,
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = ElectricLime,
+                        contentColor = GraphiteSurface
+                    ),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.testTag("btn_confirmar_cerrar_mes")
+                ) {
+                    Text("Cerrar mes y respaldar", fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { showCerrarMesDialog = false },
+                    enabled = !isClosingMonth,
+                    colors = ButtonDefaults.textButtonColors(contentColor = TextSecondary),
+                    modifier = Modifier.testTag("btn_cancelar_cerrar_mes")
+                ) {
+                    Text("Cancelar")
+                }
+            },
+            containerColor = GraphiteSurface,
+            shape = RoundedCornerShape(14.dp)
+        )
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -613,6 +695,9 @@ fun GananciasScreen(
                 productsSold = sortedAndFilteredProducts,
                 topSellingProducts = topSellingProducts,
                 sales = activeMonthSales,
+                isClosingMonth = isClosingMonth,
+                canCerrarMes = totalMonthUsd > 0.0 || activeMonthSales.isNotEmpty() || (gananciasActuales?.usuarios?.isNotEmpty() == true),
+                onOpenCerrarMesDialog = { showCerrarMesDialog = true },
                 viewMode = viewMode,
                 onViewModeChange = { viewMode = it },
                 searchQuery = productSearchQuery,
@@ -760,6 +845,9 @@ private fun LazyListScope.renderGananciasItems(
     productsSold: List<ProductSaleSummary>,
     topSellingProducts: List<ProductSaleSummary>,
     sales: List<Sale>,
+    isClosingMonth: Boolean = false,
+    canCerrarMes: Boolean = false,
+    onOpenCerrarMesDialog: () -> Unit = {},
     viewMode: Int,
     onViewModeChange: (Int) -> Unit,
     searchQuery: String,
@@ -798,6 +886,108 @@ private fun LazyListScope.renderGananciasItems(
                     color = TextMuted,
                     fontSize = 10.sp
                 )
+            }
+        }
+    }
+
+    // Action Card for Cerrar Mes (Only in current month when there are sales)
+    if (!isArchived && canCerrarMes) {
+        item {
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(12.dp))
+                    .border(1.dp, ElectricLime.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                    .testTag("card_cerrar_mes"),
+                color = GraphiteSurface,
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Row(
+                        modifier = Modifier.weight(1f),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(36.dp)
+                                .clip(CircleShape)
+                                .background(ElectricLime.copy(alpha = 0.15f)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CloudUpload,
+                                contentDescription = null,
+                                tint = ElectricLime,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column {
+                            Text(
+                                text = "Cierre Mensual",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Text(
+                                text = "Respaldar reporte en Drive y limpiar mes",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = TextSecondary,
+                                fontSize = 11.sp
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.width(8.dp))
+
+                    Button(
+                        onClick = onOpenCerrarMesDialog,
+                        enabled = !isClosingMonth,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = ElectricLime,
+                            contentColor = Color.Black,
+                            disabledContainerColor = GraphiteSurfaceVariant,
+                            disabledContentColor = TextMuted
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                        modifier = Modifier
+                            .height(36.dp)
+                            .testTag("btn_cerrar_mes")
+                    ) {
+                        if (isClosingMonth) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                color = Color.Black,
+                                strokeWidth = 2.dp
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Cerrando...",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        } else {
+                            Icon(
+                                imageVector = Icons.Default.Lock,
+                                contentDescription = null,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "Cerrar mes",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
             }
         }
     }

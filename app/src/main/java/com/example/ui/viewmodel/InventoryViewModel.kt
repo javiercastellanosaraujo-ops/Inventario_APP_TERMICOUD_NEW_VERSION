@@ -1,12 +1,17 @@
 package com.example.ui.viewmodel
 
+import android.app.Activity
 import android.app.Application
 import android.util.Log
+import androidx.activity.result.IntentSenderRequest
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.config.AppConfig
 import com.example.data.local.AppPreferencesRepository
+import com.example.util.GoogleDriveAuthHelper
+import com.example.util.GoogleDriveUploader
 import com.example.util.InvoicePdfGenerator
+import com.example.util.MonthlyReportGenerator
 import com.example.data.model.AppUser
 import com.example.data.model.CartItem
 import com.example.data.model.Combo
@@ -141,6 +146,9 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val _isLoadingGanancias = MutableStateFlow(false)
     val isLoadingGanancias: StateFlow<Boolean> = _isLoadingGanancias.asStateFlow()
+
+    private val _isClosingMonth = MutableStateFlow(false)
+    val isClosingMonth: StateFlow<Boolean> = _isClosingMonth.asStateFlow()
 
     // Search & Filter state
     private val _searchQuery = MutableStateFlow("")
@@ -2347,17 +2355,28 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         val localMonths = computeLocalPastMonths()
         viewModelScope.launch {
             _isLoadingGanancias.value = true
+            val firestoreMonths = try {
+                val snapshot = firestore.collection("resumenes_mensuales").get().await()
+                snapshot.documents.mapNotNull { doc ->
+                    val mes = doc.getString("mes") ?: doc.id
+                    if (mes.isNotBlank()) "Ventas_$mes" else null
+                }
+            } catch (e: Exception) {
+                Log.w("InventoryViewModel", "Aviso consultando resumenes_mensuales de Firestore: ${e.message}")
+                emptyList()
+            }
+
             if (url.isNotBlank()) {
                 val result = GananciasApiService.getHistorialMeses(url)
                 result.onSuccess { list ->
-                    val merged = (list + localMonths).distinct().sortedDescending()
+                    val merged = (list + localMonths + firestoreMonths).distinct().sortedDescending()
                     _historialMeses.value = if (merged.isNotEmpty()) merged else list
                 }.onFailure { e ->
                     Log.w("InventoryViewModel", "Error obteniendo historial_meses de backend: ${e.message}")
-                    _historialMeses.value = localMonths
+                    _historialMeses.value = (localMonths + firestoreMonths).distinct().sortedDescending()
                 }
             } else {
-                _historialMeses.value = localMonths
+                _historialMeses.value = (localMonths + firestoreMonths).distinct().sortedDescending()
             }
             _isLoadingGanancias.value = false
         }
@@ -2367,8 +2386,53 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         _selectedArchivedMonth.value = mesKey
         val url = preferencesRepo.backendUrl.value.trim()
         val localMonthCalc = computeLocalGananciasForMonthKey(mesKey)
+        val cleanKey = mesKey.removePrefix("Ventas_").removePrefix("ventas_").trim()
+
         viewModelScope.launch {
             _isLoadingGanancias.value = true
+            var firestoreData: GananciasMes? = null
+            try {
+                val doc = firestore.collection("resumenes_mensuales").document(cleanKey).get().await()
+                if (doc.exists()) {
+                    val totalUsd = doc.getDouble("totalUsd") ?: 0.0
+                    val totalBs = doc.getDouble("totalBs") ?: 0.0
+                    val totalCostoUsd = doc.getDouble("totalCostoUsd") ?: 0.0
+                    val gananciaNetaUsd = doc.getDouble("gananciaNetaUsd") ?: 0.0
+                    val margenPorcentaje = doc.getDouble("margenPorcentaje") ?: 0.0
+                    val rawUsers = doc.get("usuarios") as? List<Map<String, Any>> ?: emptyList()
+                    val userList = rawUsers.map { uMap ->
+                        UsuarioGanancia(
+                            usuario = uMap["usuario"] as? String ?: "Operador",
+                            ventas = (uMap["ventas"] as? Number)?.toInt() ?: 0,
+                            unidades = (uMap["unidades"] as? Number)?.toInt() ?: 0,
+                            totalUsd = (uMap["totalUsd"] as? Number)?.toDouble() ?: 0.0,
+                            totalBs = (uMap["totalBs"] as? Number)?.toDouble() ?: 0.0,
+                            totalCostoUsd = (uMap["totalCostoUsd"] as? Number)?.toDouble() ?: 0.0,
+                            gananciaNetaUsd = (uMap["gananciaNetaUsd"] as? Number)?.toDouble() ?: 0.0,
+                            margenPorcentaje = (uMap["margenPorcentaje"] as? Number)?.toDouble() ?: 0.0
+                        )
+                    }
+                    firestoreData = GananciasMes(
+                        mes = mesKey,
+                        usuarios = userList,
+                        totalUsd = totalUsd,
+                        totalBs = totalBs,
+                        totalCostoUsd = totalCostoUsd,
+                        gananciaNetaUsd = gananciaNetaUsd,
+                        margenPorcentaje = margenPorcentaje,
+                        isArchived = true
+                    )
+                }
+            } catch (e: Exception) {
+                Log.w("InventoryViewModel", "Aviso consultando resumen mensual $cleanKey en Firestore: ${e.message}")
+            }
+
+            if (firestoreData != null) {
+                _gananciasMesArchivado.value = firestoreData
+                _isLoadingGanancias.value = false
+                return@launch
+            }
+
             if (url.isNotBlank()) {
                 val result = GananciasApiService.getGananciasMesArchivado(url, mesKey)
                 result.onSuccess { remoteData ->
@@ -2388,6 +2452,169 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                 _gananciasMesArchivado.value = localMonthCalc
             }
             _isLoadingGanancias.value = false
+        }
+    }
+
+    suspend fun solicitarPermisoDrive(
+        activity: Activity,
+        launchIntentSender: (IntentSenderRequest) -> Unit
+    ): String? {
+        return GoogleDriveAuthHelper.solicitarPermisoDrive(activity, launchIntentSender)
+    }
+
+    /**
+     * Cierra el mes actual:
+     * 1. Calcula resumen y detalle de ventas.
+     * 2. Solicita permiso/token de Google Drive.
+     * 3. Genera el reporte CSV consolidado.
+     * 4. Sube el CSV a Google Drive en la carpeta 'Termicoud - Cierres Mensuales'.
+     * 5. Si la subida fue exitosa, guarda el resumen permanente en Firestore ("resumenes_mensuales").
+     * 6. Elimina las ventas del mes en Firestore y Room para iniciar en limpio.
+     * 7. Refresca ganancias e historial.
+     */
+    fun cerrarMesActual(
+        activity: Activity,
+        launchIntentSender: (IntentSenderRequest) -> Unit
+    ) {
+        if (_isClosingMonth.value) return
+
+        viewModelScope.launch {
+            _isClosingMonth.value = true
+            _errorMessage.value = null
+            try {
+                // 1. Calcular ganancias y ventas del mes en curso
+                val localGanancias = computeLocalGananciasCurrentMonth()
+                val now = java.util.Calendar.getInstance()
+                val currentYear = now.get(java.util.Calendar.YEAR)
+                val currentMonth = now.get(java.util.Calendar.MONTH) // 0-indexed
+                val cleanMonthStr = String.format(java.util.Locale.US, "%04d-%02d", currentYear, currentMonth + 1)
+                val monthKey = "Ventas_$cleanMonthStr"
+
+                val nonRevertedSales = _salesHistory.value.filter { sale ->
+                    !sale.esReversado && (
+                        sale.timestamp <= 0L || run {
+                            val cal = java.util.Calendar.getInstance().apply { timeInMillis = sale.timestamp }
+                            cal.get(java.util.Calendar.YEAR) == currentYear && cal.get(java.util.Calendar.MONTH) == currentMonth
+                        }
+                    )
+                }
+
+                if (nonRevertedSales.isEmpty() && localGanancias.usuarios.isEmpty()) {
+                    _errorMessage.value = "No hay ventas este mes todavía para cerrar."
+                    _isClosingMonth.value = false
+                    return@launch
+                }
+
+                // 2. Pedir token de Google Drive
+                val token = solicitarPermisoDrive(activity, launchIntentSender)
+                if (token.isNullOrBlank()) {
+                    _errorMessage.value = "Se requiere autorización de Google Drive para respaldar el reporte. Cierre de mes cancelado."
+                    _isClosingMonth.value = false
+                    return@launch
+                }
+
+                // 3. Generar CSV
+                val csvContent = MonthlyReportGenerator.generateMonthlyReportCsv(
+                    mesKey = cleanMonthStr,
+                    usuarios = localGanancias.usuarios,
+                    ventas = nonRevertedSales,
+                    tasaCambio = exchangeRate.value
+                )
+
+                // 4. Subir a Google Drive
+                val timestampStr = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
+                val fileName = "Cierre_Mes_${cleanMonthStr}_$timestampStr.csv"
+                val uploadResult = GoogleDriveUploader.subirCsvADrive(
+                    accessToken = token,
+                    contenidoCsv = csvContent,
+                    nombreArchivo = fileName
+                )
+
+                if (uploadResult.isFailure) {
+                    val errorMsg = uploadResult.exceptionOrNull()?.message ?: "Error desconocido"
+                    Log.e("InventoryViewModel", "Error al subir reporte a Google Drive: $errorMsg")
+                    _errorMessage.value = "Error al subir reporte a Google Drive: $errorMsg. Las ventas no fueron eliminadas."
+                    _isClosingMonth.value = false
+                    return@launch
+                }
+
+                val driveFileId = uploadResult.getOrNull() ?: ""
+
+                // 5. Guardar resumen permanente en Firestore ("resumenes_mensuales")
+                val userEmail = getCurrentAuthEmail()
+                val userName = _currentUser.value?.displayName ?: auth.currentUser?.displayName ?: activeUser.value
+                val resumenDocRef = firestore.collection("resumenes_mensuales").document(cleanMonthStr)
+
+                val resumenData = mapOf(
+                    "mes" to cleanMonthStr,
+                    "mesKey" to monthKey,
+                    "totalUsd" to localGanancias.totalUsd,
+                    "totalBs" to localGanancias.totalBs,
+                    "totalCostoUsd" to localGanancias.totalCostoUsd,
+                    "gananciaNetaUsd" to localGanancias.gananciaNetaUsd,
+                    "margenPorcentaje" to localGanancias.margenPorcentaje,
+                    "usuarios" to localGanancias.usuarios.map { u ->
+                        mapOf(
+                            "usuario" to u.usuario,
+                            "ventas" to u.ventas,
+                            "unidades" to u.unidades,
+                            "totalUsd" to u.totalUsd,
+                            "totalBs" to u.totalBs,
+                            "totalCostoUsd" to u.totalCostoUsd,
+                            "gananciaNetaUsd" to u.gananciaNetaUsd,
+                            "margenPorcentaje" to u.margenPorcentaje
+                        )
+                    },
+                    "cerradoEn" to System.currentTimeMillis(),
+                    "cerradoPorEmail" to userEmail,
+                    "cerradoPorNombre" to userName,
+                    "archivoDriveNombre" to fileName,
+                    "archivoDriveId" to driveFileId
+                )
+                resumenDocRef.set(resumenData, SetOptions.merge()).await()
+
+                // 6. Borrar en lotes de 400 las ventas de Firestore de ese mes
+                val salesSnapshot = firestore.collection("ventas").get().await()
+                val docsToDelete = salesSnapshot.documents.filter { doc ->
+                    val ts = doc.getLong("timestamp") ?: (doc.get("timestamp") as? Number)?.toLong() ?: 0L
+                    if (ts <= 0L) {
+                        false
+                    } else {
+                        val cal = java.util.Calendar.getInstance().apply { timeInMillis = ts }
+                        cal.get(java.util.Calendar.YEAR) == currentYear && cal.get(java.util.Calendar.MONTH) == currentMonth
+                    }
+                }
+
+                docsToDelete.chunked(400).forEach { chunk ->
+                    val batch = firestore.batch()
+                    chunk.forEach { doc ->
+                        batch.delete(doc.reference)
+                    }
+                    batch.commit().await()
+                }
+
+                // Limpiar ventas locales en Room
+                try {
+                    nonRevertedSales.forEach { sale ->
+                        if (sale.id.isNotBlank()) {
+                            saleDao.deleteByFirestoreId(sale.id)
+                        }
+                    }
+                } catch (e: Exception) {
+                    Log.w("InventoryViewModel", "Aviso limpiando ventas locales de Room: ${e.message}")
+                }
+
+                _successMessage.value = "Mes cerrado exitosamente. Reporte respaldado en Google Drive ('$fileName')."
+
+                // 7. Refrescar ganancias e historial
+                fetchGanancias()
+                fetchHistorialMeses()
+            } catch (e: Exception) {
+                Log.e("InventoryViewModel", "Error al cerrar el mes: ${e.message}", e)
+                _errorMessage.value = "Error al cerrar el mes: ${e.localizedMessage}"
+            } finally {
+                _isClosingMonth.value = false
+            }
         }
     }
 

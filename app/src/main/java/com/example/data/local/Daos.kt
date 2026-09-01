@@ -37,4 +37,10 @@ interface SaleDao {
 
     @Query("UPDATE sales_history SET synced = 1 WHERE id = :id")
     suspend fun markSynced(id: Long)
+
+    @Query("DELETE FROM sales_history WHERE firestoreId = :firestoreId")
+    suspend fun deleteByFirestoreId(firestoreId: String)
+
+    @Query("DELETE FROM sales_history")
+    suspend fun deleteAllSales()
 }

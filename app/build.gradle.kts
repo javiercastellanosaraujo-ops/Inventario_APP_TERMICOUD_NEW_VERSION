@@ -110,6 +110,7 @@ dependencies {
   implementation(libs.firebase.auth)
   implementation(libs.androidx.credentials)
   implementation(libs.androidx.credentials.play.services)
+  implementation("com.google.android.gms:play-services-auth:21.2.0")
   implementation(libs.googleid)
   implementation(libs.kotlinx.coroutines.play.services)
   // implementation(libs.firebase.appcheck.recaptcha)
