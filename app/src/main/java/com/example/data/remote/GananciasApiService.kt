@@ -68,7 +68,7 @@ object GananciasApiService {
         throw Exception("Demasiadas redirecciones HTTP")
     }
 
-    private fun executeHttpPost(urlString: String, jsonBody: JSONObject): String {
+    internal fun executeHttpPost(urlString: String, jsonBody: JSONObject): String {
         val url = URL(urlString)
         val connection = (url.openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
@@ -853,4 +853,62 @@ object GananciasApiService {
             Result.failure(e)
         }
     }
+
+    /**
+     * Sube el Reporte de Cierre Mensual (CSV) a la misma carpeta de Google Drive a través del Google Apps Script webhook.
+     */
+    suspend fun uploadMonthlyReportToDrive(
+        url: String,
+        mesAnio: String,
+        fileName: String,
+        fileBase64: String,
+        mimeType: String = "text/csv",
+        totalUsd: Double,
+        usuario: String
+    ): Result<Boolean> = withContext(Dispatchers.IO) {
+        val cleanUrl = url.trim()
+        if (cleanUrl.isBlank()) return@withContext Result.failure(Exception("URL de Google Drive no configurada"))
+
+        try {
+            val payload = JSONObject().apply {
+                put("accion", "guardar_cierre_drive")
+                put("action", "guardar_cierre_drive")
+                put("tipo", "cierre_mensual")
+                put("sale_id", "CIERRE-$mesAnio")
+                put("folio", "CIERRE-$mesAnio")
+                put("cliente", "REPORTE DE CIERRE MENSUAL")
+                put("usuario", usuario)
+                put("total_usd", totalUsd)
+                put("totalUsd", totalUsd)
+                put("mes_anio", mesAnio)
+                put("mesAnio", mesAnio)
+                put("archivo_nombre", fileName)
+                put("fileName", fileName)
+                put("filename", fileName)
+                put("archivo_base64", fileBase64)
+                put("pdfBase64", fileBase64)
+                put("base64", fileBase64)
+                put("fileData", fileBase64)
+                put("mimeType", mimeType)
+            }
+
+            var response = executeHttpPost(cleanUrl, payload)
+            Log.d(TAG, "Respuesta guardar_cierre_drive: $response")
+
+            // Si el Google Apps Script solo reconoce accion='guardar_nota_drive':
+            val json = try { JSONObject(response) } catch (e: Exception) { null }
+            if (json != null && json.has("ok") && !json.optBoolean("ok", true)) {
+                payload.put("accion", "guardar_nota_drive")
+                payload.put("action", "guardar_nota_drive")
+                response = executeHttpPost(cleanUrl, payload)
+                Log.d(TAG, "Fallback respuesta guardar_nota_drive para cierre mensual: $response")
+            }
+
+            Result.success(true)
+        } catch (e: Exception) {
+            Log.w(TAG, "Error subiendo cierre mensual a Drive: ${e.message}", e)
+            Result.failure(e)
+        }
+    }
 }
+

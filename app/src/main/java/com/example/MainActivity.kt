@@ -140,6 +140,7 @@ fun TermicoudApp(viewModel: InventoryViewModel = viewModel()) {
     val selectedArchivedMonth by viewModel.selectedArchivedMonth.collectAsStateWithLifecycle()
     val isLoadingGanancias by viewModel.isLoadingGanancias.collectAsStateWithLifecycle()
     val isClosingMonth by viewModel.isClosingMonth.collectAsStateWithLifecycle()
+    val cierresMensuales by viewModel.cierresMensuales.collectAsStateWithLifecycle()
     val backendUrl by viewModel.backendUrl.collectAsStateWithLifecycle()
 
     val bottomSheetProduct by viewModel.selectedProductForBottomSheet.collectAsStateWithLifecycle()
@@ -418,6 +419,7 @@ fun TermicoudApp(viewModel: InventoryViewModel = viewModel()) {
                                                 historialMeses = historialMeses,
                                                 gananciasMesArchivado = gananciasMesArchivado,
                                                 selectedArchivedMonth = selectedArchivedMonth,
+                                                cierresMensuales = cierresMensuales,
                                                 salesHistory = salesHistory,
                                                 exchangeRate = exchangeRate,
                                                 isLoading = isLoadingGanancias,

@@ -14,6 +14,7 @@ import com.example.util.InvoicePdfGenerator
 import com.example.util.MonthlyReportGenerator
 import com.example.data.model.AppUser
 import com.example.data.model.CartItem
+import com.example.data.model.CierreMensualInfo
 import com.example.data.model.Combo
 import com.example.data.model.ComboComponente
 import com.example.data.model.GananciasMes
@@ -27,6 +28,8 @@ import com.example.data.model.TipoMovimiento
 import com.example.data.model.UserSession
 import com.example.data.model.UsuarioGanancia
 import com.example.data.remote.GananciasApiService
+import com.example.data.remote.MonthlyClosingParams
+import com.example.data.remote.MonthlyClosingService
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.DocumentReference
 import com.google.firebase.firestore.FirebaseFirestore
@@ -137,6 +140,9 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
 
     private val _historialMeses = MutableStateFlow<List<String>>(emptyList())
     val historialMeses: StateFlow<List<String>> = _historialMeses.asStateFlow()
+
+    private val _cierresMensuales = MutableStateFlow<List<CierreMensualInfo>>(emptyList())
+    val cierresMensuales: StateFlow<List<CierreMensualInfo>> = _cierresMensuales.asStateFlow()
 
     private val _gananciasMesArchivado = MutableStateFlow<GananciasMes?>(null)
     val gananciasMesArchivado: StateFlow<GananciasMes?> = _gananciasMesArchivado.asStateFlow()
@@ -2355,16 +2361,56 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
         val localMonths = computeLocalPastMonths()
         viewModelScope.launch {
             _isLoadingGanancias.value = true
-            val firestoreMonths = try {
+            val firestoreCierres = try {
                 val snapshot = firestore.collection("resumenes_mensuales").get().await()
                 snapshot.documents.mapNotNull { doc ->
                     val mes = doc.getString("mes") ?: doc.id
-                    if (mes.isNotBlank()) "Ventas_$mes" else null
-                }
+                    if (mes.isBlank()) return@mapNotNull null
+                    val mesKey = doc.getString("mesKey") ?: "Ventas_$mes"
+                    val totalUsd = doc.getDouble("totalUsd") ?: 0.0
+                    val totalBs = doc.getDouble("totalBs") ?: 0.0
+                    val totalCostoUsd = doc.getDouble("totalCostoUsd") ?: 0.0
+                    val gananciaNetaUsd = doc.getDouble("gananciaNetaUsd") ?: 0.0
+                    val margenPorcentaje = doc.getDouble("margenPorcentaje") ?: 0.0
+                    val rawUsers = doc.get("usuarios") as? List<*> ?: emptyList<Any>()
+                    val totalItemsInventario = doc.getLong("totalItemsInventario")?.toInt() ?: 0
+                    val unidadesStockTotal = doc.getLong("unidadesStockTotal")?.toInt() ?: 0
+                    val valorInventarioCostoUsd = doc.getDouble("valorInventarioCostoUsd") ?: 0.0
+                    val valorInventarioVentaUsd = doc.getDouble("valorInventarioVentaUsd") ?: 0.0
+                    val cerradoEn = doc.getLong("cerradoEn") ?: 0L
+                    val cerradoPorEmail = doc.getString("cerradoPorEmail") ?: ""
+                    val cerradoPorNombre = doc.getString("cerradoPorNombre") ?: ""
+                    val archivoDriveNombre = doc.getString("archivoDriveNombre") ?: ""
+                    val archivoDriveId = doc.getString("archivoDriveId") ?: ""
+                    val driveUrlDoc = doc.getString("driveUrl") ?: ""
+                    CierreMensualInfo(
+                        id = doc.id,
+                        mes = mes,
+                        mesKey = mesKey,
+                        totalUsd = totalUsd,
+                        totalBs = totalBs,
+                        totalCostoUsd = totalCostoUsd,
+                        gananciaNetaUsd = gananciaNetaUsd,
+                        margenPorcentaje = margenPorcentaje,
+                        usuariosCount = rawUsers.size,
+                        totalItemsInventario = totalItemsInventario,
+                        unidadesStockTotal = unidadesStockTotal,
+                        valorInventarioCostoUsd = valorInventarioCostoUsd,
+                        valorInventarioVentaUsd = valorInventarioVentaUsd,
+                        cerradoEn = cerradoEn,
+                        cerradoPorEmail = cerradoPorEmail,
+                        cerradoPorNombre = cerradoPorNombre,
+                        archivoDriveNombre = archivoDriveNombre,
+                        archivoDriveId = archivoDriveId,
+                        driveUrl = driveUrlDoc
+                    )
+                }.sortedByDescending { it.cerradoEn.takeIf { t -> t > 0L } ?: it.mes.hashCode().toLong() }
             } catch (e: Exception) {
                 Log.w("InventoryViewModel", "Aviso consultando resumenes_mensuales de Firestore: ${e.message}")
                 emptyList()
             }
+            _cierresMensuales.value = firestoreCierres
+            val firestoreMonths = firestoreCierres.map { it.mesKey }
 
             if (url.isNotBlank()) {
                 val result = GananciasApiService.getHistorialMeses(url)
@@ -2465,16 +2511,15 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
     /**
      * Cierra el mes actual:
      * 1. Calcula resumen y detalle de ventas.
-     * 2. Solicita permiso/token de Google Drive.
-     * 3. Genera el reporte CSV consolidado.
-     * 4. Sube el CSV a Google Drive en la carpeta 'Termicoud - Cierres Mensuales'.
-     * 5. Si la subida fue exitosa, guarda el resumen permanente en Firestore ("resumenes_mensuales").
-     * 6. Elimina las ventas del mes en Firestore y Room para iniciar en limpio.
-     * 7. Refresca ganancias e historial.
+     * 2. Genera el reporte CSV consolidado.
+     * 3. Sube el CSV a la misma carpeta de Google Drive donde se envían las facturas (a través del Google Apps Script Webhook).
+     * 4. Guarda el resumen permanente en Firestore ("resumenes_mensuales") para el Historial de Cierres.
+     * 5. Elimina las ventas del mes en Firestore y Room para iniciar el nuevo periodo en limpio.
+     * 6. Refresca ganancias e historial de cierres.
      */
     fun cerrarMesActual(
-        activity: Activity,
-        launchIntentSender: (IntentSenderRequest) -> Unit
+        activity: Activity? = null,
+        launchIntentSender: ((IntentSenderRequest) -> Unit)? = null
     ) {
         if (_isClosingMonth.value) return
 
@@ -2500,59 +2545,58 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                 }
 
                 if (nonRevertedSales.isEmpty() && localGanancias.usuarios.isEmpty()) {
-                    _errorMessage.value = "No hay ventas este mes todavía para cerrar."
+                    _errorMessage.value = "No hay ventas registradas este mes todavía para cerrar."
                     _isClosingMonth.value = false
                     return@launch
                 }
 
-                // 2. Pedir token de Google Drive
-                val token = solicitarPermisoDrive(activity, launchIntentSender)
-                if (token.isNullOrBlank()) {
-                    _errorMessage.value = "Se requiere autorización de Google Drive para respaldar el reporte. Cierre de mes cancelado."
-                    _isClosingMonth.value = false
-                    return@launch
-                }
-
-                // 3. Generar CSV
-                val csvContent = MonthlyReportGenerator.generateMonthlyReportCsv(
-                    mesKey = cleanMonthStr,
-                    usuarios = localGanancias.usuarios,
-                    ventas = nonRevertedSales,
-                    tasaCambio = exchangeRate.value
-                )
-
-                // 4. Subir a Google Drive
-                val timestampStr = java.text.SimpleDateFormat("yyyyMMdd_HHmmss", java.util.Locale.US).format(java.util.Date())
-                val fileName = "Cierre_Mes_${cleanMonthStr}_$timestampStr.csv"
-                val uploadResult = GoogleDriveUploader.subirCsvADrive(
-                    accessToken = token,
-                    contenidoCsv = csvContent,
-                    nombreArchivo = fileName
-                )
-
-                if (uploadResult.isFailure) {
-                    val errorMsg = uploadResult.exceptionOrNull()?.message ?: "Error desconocido"
-                    Log.e("InventoryViewModel", "Error al subir reporte a Google Drive: $errorMsg")
-                    _errorMessage.value = "Error al subir reporte a Google Drive: $errorMsg. Las ventas no fueron eliminadas."
-                    _isClosingMonth.value = false
-                    return@launch
-                }
-
-                val driveFileId = uploadResult.getOrNull() ?: ""
-
-                // 5. Guardar resumen permanente en Firestore ("resumenes_mensuales")
-                val userEmail = getCurrentAuthEmail()
+                // 2. Ejecutar servicio de cierre mensual consolidado de inventario y ventas
+                val driveUrl = preferencesRepo.backendUrl.value.trim().ifBlank { AppConfig.GOOGLE_DRIVE_FOLDER_WEBHOOK_URL.trim() }
                 val userName = _currentUser.value?.displayName ?: auth.currentUser?.displayName ?: activeUser.value
+                val userEmail = getCurrentAuthEmail()
+
+                val closingParams = MonthlyClosingParams(
+                    context = getApplication<Application>(),
+                    backendDriveUrl = driveUrl,
+                    mesKey = cleanMonthStr,
+                    cerradoPorNombre = userName,
+                    cerradoPorEmail = userEmail,
+                    ventas = nonRevertedSales,
+                    inventario = _products.value,
+                    usuariosGanancias = localGanancias.usuarios,
+                    tasaCambio = exchangeRate.value,
+                    guardarCopiaLocal = true
+                )
+
+                val closingResult = MonthlyClosingService.realizarCierreMensualInventarioYVentas(closingParams)
+
+                if (closingResult.isFailure) {
+                    val errorMsg = closingResult.exceptionOrNull()?.message ?: "Error al subir reporte a Google Drive"
+                    Log.e("InventoryViewModel", "Error al procesar cierre mensual: $errorMsg")
+                    _errorMessage.value = "$errorMsg. Las ventas no fueron eliminadas."
+                    _isClosingMonth.value = false
+                    return@launch
+                }
+
+                val closingData = closingResult.getOrThrow()
+                val fileName = closingData.fileName
+
+                // 3. Guardar resumen permanente en Firestore ("resumenes_mensuales")
                 val resumenDocRef = firestore.collection("resumenes_mensuales").document(cleanMonthStr)
 
                 val resumenData = mapOf(
                     "mes" to cleanMonthStr,
                     "mesKey" to monthKey,
-                    "totalUsd" to localGanancias.totalUsd,
-                    "totalBs" to localGanancias.totalBs,
-                    "totalCostoUsd" to localGanancias.totalCostoUsd,
-                    "gananciaNetaUsd" to localGanancias.gananciaNetaUsd,
-                    "margenPorcentaje" to localGanancias.margenPorcentaje,
+                    "totalUsd" to closingData.totalVentasUsd,
+                    "totalBs" to closingData.totalVentasBs,
+                    "totalCostoUsd" to closingData.totalCostoVentasUsd,
+                    "gananciaNetaUsd" to closingData.gananciaNetaUsd,
+                    "margenPorcentaje" to closingData.margenVentasPorcentaje,
+                    "totalItemsInventario" to closingData.totalProductosInventario,
+                    "unidadesStockTotal" to closingData.unidadesStockTotal,
+                    "valorInventarioCostoUsd" to closingData.valorInventarioCostoUsd,
+                    "valorInventarioVentaUsd" to closingData.valorInventarioVentaUsd,
+                    "gananciaProyectadaInventarioUsd" to closingData.gananciaProyectadaInventarioUsd,
                     "usuarios" to localGanancias.usuarios.map { u ->
                         mapOf(
                             "usuario" to u.usuario,
@@ -2569,11 +2613,12 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                     "cerradoPorEmail" to userEmail,
                     "cerradoPorNombre" to userName,
                     "archivoDriveNombre" to fileName,
-                    "archivoDriveId" to driveFileId
+                    "archivoDriveId" to (closingData.driveFileId ?: ""),
+                    "driveUrl" to driveUrl
                 )
                 resumenDocRef.set(resumenData, SetOptions.merge()).await()
 
-                // 6. Borrar en lotes de 400 las ventas de Firestore de ese mes
+                // 4. Borrar en lotes de 400 las ventas de Firestore de ese mes
                 val salesSnapshot = firestore.collection("ventas").get().await()
                 val docsToDelete = salesSnapshot.documents.filter { doc ->
                     val ts = doc.getLong("timestamp") ?: (doc.get("timestamp") as? Number)?.toLong() ?: 0L
@@ -2604,9 +2649,9 @@ class InventoryViewModel(application: Application) : AndroidViewModel(applicatio
                     Log.w("InventoryViewModel", "Aviso limpiando ventas locales de Room: ${e.message}")
                 }
 
-                _successMessage.value = "Mes cerrado exitosamente. Reporte respaldado en Google Drive ('$fileName')."
+                _successMessage.value = "Cierre mensual de inventario y ventas completado. Reporte consolidado respaldado en Google Drive ('$fileName') y registrado en Cierres Mensuales."
 
-                // 7. Refrescar ganancias e historial
+                // 6. Refrescar ganancias e historial
                 fetchGanancias()
                 fetchHistorialMeses()
             } catch (e: Exception) {

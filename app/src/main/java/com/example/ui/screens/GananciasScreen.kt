@@ -87,6 +87,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.example.data.model.CierreMensualInfo
 import com.example.data.model.GananciasMes
 import com.example.data.model.Sale
 import com.example.data.model.SaleItem
@@ -138,6 +139,7 @@ fun GananciasScreen(
     historialMeses: List<String>,
     gananciasMesArchivado: GananciasMes?,
     selectedArchivedMonth: String?,
+    cierresMensuales: List<CierreMensualInfo> = emptyList(),
     salesHistory: List<Sale> = emptyList(),
     exchangeRate: Double = 1.0,
     isLoading: Boolean,
@@ -192,6 +194,14 @@ fun GananciasScreen(
             }
         } else {
             emptyList()
+        }
+    }
+
+    val selectedCierreInfo = remember(selectedArchivedMonth, cierresMensuales) {
+        if (selectedArchivedMonth == null) null
+        else {
+            val clean = selectedArchivedMonth.removePrefix("Ventas_").removePrefix("ventas_").trim()
+            cierresMensuales.firstOrNull { it.mes == clean || it.mesKey == selectedArchivedMonth }
         }
     }
 
@@ -451,7 +461,7 @@ fun GananciasScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "Cerrar mes y respaldar",
+                        text = "Cierre Mensual de Ganancias",
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.Bold,
                         color = TextPrimary
@@ -461,26 +471,34 @@ fun GananciasScreen(
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Text(
-                        text = "Esta acción realizará el cierre del periodo actual ($activePeriodLabel):",
+                        text = "Esta acción cerrará el periodo actual ($activePeriodLabel):",
                         style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
                         color = TextPrimary
                     )
                     Text(
-                        text = "• Genera el reporte CSV con el resumen de ganancias y el detalle de ventas.\n" +
-                               "• Sube el archivo automáticamente a tu Google Drive (carpeta 'Termicoud - Cierres Mensuales').\n" +
-                               "• Guarda un resumen permanente en el historial del sistema.\n" +
-                               "• Borra las ventas del mes para iniciar en limpio el nuevo periodo.",
+                        text = "• Genera el reporte CSV consolidado con el balance financiero y detalle de ventas.\n" +
+                               "• Sube el archivo automáticamente al mismo Google Drive donde se envían las facturas.\n" +
+                               "• Guarda un resumen permanente en la pestaña 'Cierres Mensuales'.\n" +
+                               "• Reinicia el contador de ventas para iniciar en limpio el nuevo mes.",
                         style = MaterialTheme.typography.bodySmall,
                         color = TextSecondary,
                         lineHeight = 18.sp
                     )
                     Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "⚠️ Esta acción no se puede deshacer. ¿Deseas continuar?",
-                        style = MaterialTheme.typography.bodySmall,
-                        fontWeight = FontWeight.Bold,
-                        color = WarningAmber
-                    )
+                    Surface(
+                        color = WarningAmber.copy(alpha = 0.12f),
+                        shape = RoundedCornerShape(8.dp),
+                        border = androidx.compose.foundation.BorderStroke(1.dp, WarningAmber.copy(alpha = 0.4f))
+                    ) {
+                        Text(
+                            text = "⚠️ Esta acción archivará las ventas actuales en Google Drive y dejará el nuevo periodo en cero. ¿Deseas continuar?",
+                            style = MaterialTheme.typography.bodySmall,
+                            fontWeight = FontWeight.Medium,
+                            color = WarningAmber,
+                            modifier = Modifier.padding(8.dp)
+                        )
+                    }
                 }
             },
             confirmButton = {
@@ -497,7 +515,7 @@ fun GananciasScreen(
                     shape = RoundedCornerShape(8.dp),
                     modifier = Modifier.testTag("btn_confirmar_cerrar_mes")
                 ) {
-                    Text("Cerrar mes y respaldar", fontWeight = FontWeight.Bold)
+                    Text("Cerrar mes y respaldar a Drive", fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -513,6 +531,11 @@ fun GananciasScreen(
             containerColor = GraphiteSurface,
             shape = RoundedCornerShape(14.dp)
         )
+    }
+
+    val combinedArchivedKeys = remember(cierresMensuales, historialMeses) {
+        val fromCierres = cierresMensuales.map { it.mesKey.ifBlank { "Ventas_${it.mes}" } }
+        (fromCierres + historialMeses).distinct().sortedDescending()
     }
 
     LazyColumn(
@@ -565,6 +588,38 @@ fun GananciasScreen(
                 Spacer(modifier = Modifier.width(8.dp))
 
                 Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    // Cerrar Mes Button in Top Header
+                    Button(
+                        onClick = { showCerrarMesDialog = true },
+                        enabled = !isClosingMonth,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = ElectricLime,
+                            contentColor = Color.Black,
+                            disabledContainerColor = GraphiteSurface,
+                            disabledContentColor = TextMuted
+                        ),
+                        shape = RoundedCornerShape(8.dp),
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 6.dp),
+                        modifier = Modifier
+                            .height(36.dp)
+                            .border(1.dp, if (!isClosingMonth) ElectricLime else GraphiteBorder, RoundedCornerShape(8.dp))
+                            .testTag("btn_top_cerrar_mes")
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CloudUpload,
+                            contentDescription = "Cerrar Mes",
+                            modifier = Modifier.size(15.dp)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = if (isClosingMonth) "Cerrando..." else "Cerrar Mes",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            softWrap = false
+                        )
+                    }
+
                     // Export Button
                     Button(
                         onClick = { showExportDialog = true },
@@ -624,7 +679,7 @@ fun GananciasScreen(
             }
         }
 
-        // Top Sub-Tabs: "Este mes" vs "Historial"
+        // Top Sub-Tabs: "Mes Actual" vs "Cierres Mensuales"
         item {
             Row(
                 modifier = Modifier
@@ -634,7 +689,7 @@ fun GananciasScreen(
                     .border(1.dp, GraphiteBorder, RoundedCornerShape(10.dp))
                     .padding(4.dp)
             ) {
-                // Tab 0: Este mes
+                // Tab 0: Mes Actual
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -649,14 +704,18 @@ fun GananciasScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Text(
-                        text = "Este mes",
+                        text = "Mes Actual",
                         style = MaterialTheme.typography.labelMedium,
                         fontWeight = if (activeSubTab == 0) FontWeight.Bold else FontWeight.Medium,
                         color = if (activeSubTab == 0) Color.Black else TextSecondary
                     )
                 }
 
-                // Tab 1: Historial
+                // Tab 1: Cierres Mensuales
+                val totalCierresCount = remember(cierresMensuales, historialMeses) {
+                    cierresMensuales.size.coerceAtLeast(historialMeses.size)
+                }
+
                 Box(
                     modifier = Modifier
                         .weight(1f)
@@ -667,12 +726,32 @@ fun GananciasScreen(
                         .testTag("tab_ganancias_historial"),
                     contentAlignment = Alignment.Center
                 ) {
-                    Text(
-                        text = "Historial",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = if (activeSubTab == 1) FontWeight.Bold else FontWeight.Medium,
-                        color = if (activeSubTab == 1) Color.Black else TextSecondary
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text(
+                            text = "Cierres Mensuales",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = if (activeSubTab == 1) FontWeight.Bold else FontWeight.Medium,
+                            color = if (activeSubTab == 1) Color.Black else TextSecondary
+                        )
+                        if (totalCierresCount > 0) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(10.dp),
+                                color = if (activeSubTab == 1) Color.Black.copy(alpha = 0.25f) else ElectricLime.copy(alpha = 0.2f)
+                            ) {
+                                Text(
+                                    text = "$totalCierresCount",
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (activeSubTab == 1) Color.Black else ElectricLime,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 1.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
@@ -765,6 +844,52 @@ fun GananciasScreen(
                     }
                 }
 
+                if (selectedCierreInfo != null && (selectedCierreInfo.unidadesStockTotal > 0 || selectedCierreInfo.totalItemsInventario > 0)) {
+                    item {
+                        Surface(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(10.dp),
+                            color = GraphiteSurface,
+                            border = androidx.compose.foundation.BorderStroke(1.dp, GraphiteBorder)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(ElectricLime.copy(alpha = 0.15f)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Inventory2,
+                                        contentDescription = null,
+                                        tint = ElectricLime,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Column {
+                                    Text(
+                                        text = "Inventario al Momento del Cierre",
+                                        style = MaterialTheme.typography.labelMedium,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextPrimary
+                                    )
+                                    Text(
+                                        text = "${selectedCierreInfo.unidadesStockTotal} unidades en existencia (${selectedCierreInfo.totalItemsInventario} SKUs) • Inversión costo: $${String.format(Locale.US, "%.2f", selectedCierreInfo.valorInventarioCostoUsd)}",
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = TextSecondary,
+                                        fontSize = 11.sp
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 renderGananciasItems(
                     displayMonth = formatMonthName(selectedArchivedMonth),
                     isArchived = true,
@@ -785,18 +910,81 @@ fun GananciasScreen(
                     onToggleSortByUnits = { sortByUnits = !sortByUnits }
                 )
             } else {
-                // List of archived months
+                // Informational Banner about Google Drive Backup
                 item {
-                    Text(
-                        text = "MESES ANTERIORES",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = TextSecondary,
-                        letterSpacing = 1.sp,
-                        fontWeight = FontWeight.Bold
-                    )
+                    Surface(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .border(1.dp, ElectricLime.copy(alpha = 0.35f), RoundedCornerShape(10.dp)),
+                        color = GraphiteSurface,
+                        shape = RoundedCornerShape(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(ElectricLime.copy(alpha = 0.15f)),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.CloudUpload,
+                                    contentDescription = null,
+                                    tint = ElectricLime,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "CIERRES MENSUALES EN GOOGLE DRIVE",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = ElectricLime,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 0.8.sp
+                                )
+                                Text(
+                                    text = "Los reportes se respaldan automáticamente en el mismo Drive donde van las facturas. Toca cualquier mes para consultar su detalle permanente.",
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = TextSecondary,
+                                    fontSize = 11.sp
+                                )
+                            }
+                        }
+                    }
                 }
 
-                if (isLoading && historialMeses.isEmpty()) {
+                // Header for Archived Months
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "HISTORIAL DE PERIODOS CERRADOS",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextSecondary,
+                            letterSpacing = 1.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                        TextButton(
+                            onClick = { showCerrarMesDialog = true },
+                            colors = ButtonDefaults.textButtonColors(contentColor = ElectricLime)
+                        ) {
+                            Icon(imageVector = Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(14.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Cerrar mes actual", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+
+                if (isLoading && combinedArchivedKeys.isEmpty()) {
                     item {
                         Box(
                             modifier = Modifier
@@ -807,21 +995,26 @@ fun GananciasScreen(
                             CircularProgressIndicator(color = ElectricLime)
                         }
                     }
-                } else if (historialMeses.isEmpty()) {
+                } else if (combinedArchivedKeys.isEmpty()) {
                     item {
                         EmptyGananciasCard(
                             icon = Icons.Default.History,
-                            title = "Sin meses archivados",
-                            message = "No se encontraron periodos mensuales cerrados en el historial. Los meses anteriores archivados aparecerán aquí para su consulta permanente."
+                            title = "Sin cierres mensuales registrados",
+                            message = "Aún no se ha realizado ningún cierre de mes. Al presionar 'Cerrar Mes', el reporte consolidado se subirá a la misma carpeta de Google Drive donde van las facturas y quedará archivado aquí para su consulta permanente."
                         )
                     }
                 } else {
                     items(
-                        items = historialMeses,
+                        items = combinedArchivedKeys,
                         key = { it }
                     ) { mesKey ->
+                        val cleanKey = mesKey.removePrefix("Ventas_").removePrefix("ventas_").trim()
+                        val cierreInfo = cierresMensuales.find {
+                            it.mesKey.equals(mesKey, ignoreCase = true) || it.mes.equals(cleanKey, ignoreCase = true)
+                        }
                         ArchivedMonthCard(
                             mesKey = mesKey,
+                            cierreInfo = cierreInfo,
                             onClick = { onSelectArchivedMonth(mesKey) }
                         )
                     }
@@ -893,8 +1086,8 @@ private fun LazyListScope.renderGananciasItems(
         }
     }
 
-    // Action Card for Cerrar Mes (Only in current month when there are sales)
-    if (!isArchived && canCerrarMes) {
+    // Action Card for Cerrar Mes (In current month)
+    if (!isArchived) {
         item {
             Surface(
                 modifier = Modifier
@@ -932,14 +1125,32 @@ private fun LazyListScope.renderGananciasItems(
                         }
                         Spacer(modifier = Modifier.width(10.dp))
                         Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Cierre Mensual de Ganancias",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Surface(
+                                    shape = RoundedCornerShape(4.dp),
+                                    color = ElectricLime.copy(alpha = 0.15f)
+                                ) {
+                                    Text(
+                                        text = "Drive Facturas",
+                                        color = ElectricLime,
+                                        fontSize = 9.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
                             Text(
-                                text = "Cierre Mensual",
-                                style = MaterialTheme.typography.titleSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
-                            )
-                            Text(
-                                text = "Respaldar reporte en Drive y limpiar mes",
+                                text = if (canCerrarMes)
+                                    "Respaldar reporte en Google Drive y limpiar mes"
+                                else
+                                    "Al registrar ventas podrás cerrar y respaldar el mes en Drive",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = TextSecondary,
                                 fontSize = 11.sp
@@ -951,7 +1162,7 @@ private fun LazyListScope.renderGananciasItems(
 
                     Button(
                         onClick = onOpenCerrarMesDialog,
-                        enabled = !isClosingMonth,
+                        enabled = !isClosingMonth && canCerrarMes,
                         colors = ButtonDefaults.buttonColors(
                             containerColor = ElectricLime,
                             contentColor = Color.Black,
@@ -984,7 +1195,7 @@ private fun LazyListScope.renderGananciasItems(
                             )
                             Spacer(modifier = Modifier.width(4.dp))
                             Text(
-                                text = "Cerrar mes",
+                                text = if (canCerrarMes) "Cerrar mes" else "Sin ventas",
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Bold
                             )
@@ -2186,6 +2397,7 @@ fun SaleTicketCompactCard(
 @Composable
 fun ArchivedMonthCard(
     mesKey: String,
+    cierreInfo: CierreMensualInfo? = null,
     onClick: () -> Unit
 ) {
     val formatted = formatMonthName(mesKey)
@@ -2200,56 +2412,155 @@ fun ArchivedMonthCard(
         colors = CardDefaults.cardColors(containerColor = GraphiteSurface),
         shape = RoundedCornerShape(10.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+                .padding(14.dp)
         ) {
             Row(
+                modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                modifier = Modifier.weight(1f)
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Box(
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(GraphiteSurfaceVariant),
-                    contentAlignment = Alignment.Center
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.CalendarMonth,
-                        contentDescription = null,
-                        tint = ElectricLime,
-                        modifier = Modifier.size(20.dp)
-                    )
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(GraphiteSurfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.CalendarMonth,
+                            contentDescription = null,
+                            tint = ElectricLime,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.width(12.dp))
+
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = formatted,
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = TextPrimary
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                shape = RoundedCornerShape(4.dp),
+                                color = ElectricLime.copy(alpha = 0.15f),
+                                border = androidx.compose.foundation.BorderStroke(1.dp, ElectricLime.copy(alpha = 0.35f))
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.CloudUpload,
+                                        contentDescription = null,
+                                        tint = ElectricLime,
+                                        modifier = Modifier.size(10.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(3.dp))
+                                    Text(
+                                        text = "Drive",
+                                        color = ElectricLime,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+                        Text(
+                            text = if (cierreInfo != null && cierreInfo.cerradoPorNombre.isNotBlank())
+                                "Cerrado por ${cierreInfo.cerradoPorNombre}"
+                            else
+                                "Periodo archivado ($mesKey)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = TextMuted,
+                            fontSize = 11.sp
+                        )
+                    }
                 }
 
-                Spacer(modifier = Modifier.width(12.dp))
+                Icon(
+                    imageVector = Icons.Default.ChevronRight,
+                    contentDescription = "Ver detalle",
+                    tint = TextSecondary,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
 
-                Column {
+            if (cierreInfo != null && (cierreInfo.totalUsd > 0.0 || cierreInfo.gananciaNetaUsd > 0.0)) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(GraphiteSurfaceVariant)
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(
+                            text = "Facturado",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextMuted,
+                            fontSize = 10.sp
+                        )
+                        Text(
+                            text = String.format(Locale.US, "$%,.2f", cierreInfo.totalUsd),
+                            style = MonoDataMedium.copy(color = TextPrimary, fontSize = 13.sp)
+                        )
+                    }
+
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = "Ganancia Neta",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = TextMuted,
+                            fontSize = 10.sp
+                        )
+                        Text(
+                            text = String.format(Locale.US, "+$%,.2f (%.1f%%)", cierreInfo.gananciaNetaUsd, cierreInfo.margenPorcentaje),
+                            style = MonoDataMedium.copy(color = ElectricLime, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                        )
+                    }
+                }
+            }
+
+            if (cierreInfo != null && (cierreInfo.unidadesStockTotal > 0 || cierreInfo.totalItemsInventario > 0)) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
-                        text = formatted,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = TextPrimary
-                    )
-                    Text(
-                        text = "Periodo archivado ($mesKey)",
+                        text = "📦 Inventario al corte: ${cierreInfo.unidadesStockTotal} unidades (${cierreInfo.totalItemsInventario} SKUs)",
                         style = MaterialTheme.typography.bodySmall,
-                        color = TextMuted,
+                        color = TextSecondary,
                         fontSize = 11.sp
                     )
                 }
             }
 
-            Icon(
-                imageVector = Icons.Default.ChevronRight,
-                contentDescription = "Ver detalle",
-                tint = TextSecondary,
-                modifier = Modifier.size(20.dp)
-            )
+            if (cierreInfo != null && cierreInfo.archivoDriveNombre.isNotBlank()) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "📄 ${cierreInfo.archivoDriveNombre}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = TextMuted,
+                    fontSize = 10.sp,
+                    maxLines = 1,
+                    overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                )
+            }
         }
     }
 }
